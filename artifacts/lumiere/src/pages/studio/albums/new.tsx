@@ -25,7 +25,7 @@ import { Link } from "wouter";
 const formSchema = z.object({
   title: z.string().min(1, "Vui lòng nhập tên album"),
   description: z.string().optional(),
-  maxSelection: z.coerce.number().min(1, "Số lượng ảnh chọn tối thiểu là 1"),
+  maxSelection: z.coerce.number().min(0).default(0),
   allowDownload: z.boolean().default(false),
   allowNotes: z.boolean().default(true),
   isPublic: z.boolean().default(false),
@@ -41,7 +41,7 @@ export default function NewAlbum() {
     defaultValues: {
       title: "",
       description: "",
-      maxSelection: 10,
+      maxSelection: 0,
       allowDownload: false,
       allowNotes: true,
       isPublic: false,
@@ -50,7 +50,7 @@ export default function NewAlbum() {
 
   function onSubmit(values: z.infer<typeof formSchema>) {
     createAlbum.mutate(
-      { data: values },
+      { data: { ...values, maxSelection: Number(values.maxSelection) || 0 } },
       {
         onSuccess: (res) => {
           queryClient.invalidateQueries({ queryKey: getListAlbumsQueryKey() });
@@ -133,11 +133,9 @@ export default function NewAlbum() {
                     <FormItem>
                       <FormLabel>Số lượng ảnh tối đa khách được chọn</FormLabel>
                       <FormControl>
-                        <Input type="number" min="1" {...field} />
+                        <Input type="number" placeholder="0" {...field} />
                       </FormControl>
-                      <FormDescription>
-                        Khách hàng sẽ không thể chọn quá số lượng này.
-                      </FormDescription>
+                      <p className="mt-1 text-xs text-stone-500">Để trống hoặc nhập 0 nếu không muốn giới hạn</p>
                       <FormMessage />
                     </FormItem>
                   )}

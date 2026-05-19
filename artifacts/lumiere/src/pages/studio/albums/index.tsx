@@ -1,8 +1,9 @@
+import { useState } from "react";
 import { useListAlbums, getListAlbumsQueryKey } from "@workspace/api-client-react";
 import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Plus, Image as ImageIcon, Users, Lock, Globe } from "lucide-react";
+import { Plus, Image as ImageIcon, Users, Lock, Globe, Link as LinkIcon, Check } from "lucide-react";
 import { format } from "date-fns";
 import { motion } from "framer-motion";
 
@@ -10,6 +11,18 @@ export default function StudioAlbums() {
   const { data, isLoading } = useListAlbums({
     query: { queryKey: getListAlbumsQueryKey() }
   });
+  const [copiedId, setCopiedId] = useState<string | null>(null);
+
+  function copyLink(e: React.MouseEvent, album: { id: string; slug: string }) {
+    e.preventDefault();
+    e.stopPropagation();
+    navigator.clipboard.writeText(
+      `${window.location.origin}/album/${album.slug}`
+    ).then(() => {
+      setCopiedId(album.id);
+      setTimeout(() => setCopiedId(null), 2000);
+    });
+  }
 
   const container = {
     hidden: { opacity: 0 },
@@ -104,7 +117,23 @@ export default function StudioAlbums() {
                             {album.selectionCount || 0}
                           </span>
                         </div>
-                        <span className="text-xs">{format(new Date(album.createdAt), "dd/MM/yyyy")}</span>
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs">{format(new Date(album.createdAt), "dd/MM/yyyy")}</span>
+                          <button
+                            onClick={(e) => copyLink(e, album)}
+                            title="Copy link khách chọn ảnh"
+                            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                              copiedId === album.id
+                                ? 'bg-success/15 text-success'
+                                : 'bg-sand text-warm-gray hover:bg-accent/10 hover:text-accent'
+                            }`}
+                          >
+                            {copiedId === album.id
+                              ? <Check size={13} />
+                              : <LinkIcon size={13} />}
+                            {copiedId === album.id ? 'Đã copy!' : 'Copy link'}
+                          </button>
+                        </div>
                       </div>
                     </div>
                   </CardContent>
