@@ -16,6 +16,7 @@ export const studiosTable = pgTable("studios", {
   status: text("status", { enum: ["PENDING", "APPROVED", "DISABLED"] }).notNull().default("PENDING"),
   googleDriveRefreshToken: text("google_drive_refresh_token"),
   rootFolderId: text("root_folder_id"),
+  defaultMaxSelection: integer("default_max_selection").notNull().default(0),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow().$onUpdate(() => new Date()),
 });

@@ -22,6 +22,7 @@ import { Link } from "wouter";
 const formSchema = z.object({
   name: z.string().min(2, "Tên Studio phải có ít nhất 2 ký tự"),
   password: z.string().optional(),
+  defaultMaxSelection: z.coerce.number().min(0).default(0),
 });
 
 export default function StudioSettings() {
@@ -34,17 +35,22 @@ export default function StudioSettings() {
     defaultValues: {
       name: "",
       password: "",
+      defaultMaxSelection: 0,
     },
   });
 
   useEffect(() => {
-    if (me?.studio?.name) {
+    if (me?.studio) {
       form.setValue("name", me.studio.name);
+      form.setValue("defaultMaxSelection", me.studio.defaultMaxSelection ?? 0);
     }
   }, [me, form]);
 
   function onSubmit(values: z.infer<typeof formSchema>) {
-    const payload: { name?: string; password?: string } = { name: values.name };
+    const payload: { name?: string; password?: string; defaultMaxSelection?: number } = {
+      name: values.name,
+      defaultMaxSelection: values.defaultMaxSelection,
+    };
     if (values.password && values.password.trim() !== "") {
       payload.password = values.password;
     }
@@ -131,6 +137,23 @@ export default function StudioSettings() {
                   )}
                 />
                 
+                <FormField
+                  control={form.control}
+                  name="defaultMaxSelection"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Số lượng ảnh tối đa mặc định</FormLabel>
+                      <FormControl>
+                        <Input type="number" min={0} placeholder="0" {...field} className="w-40" />
+                      </FormControl>
+                      <FormDescription>
+                        Giá trị này sẽ được điền sẵn khi tạo album mới. Để 0 nếu không muốn giới hạn mặc định.
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
                 <FormField
                   control={form.control}
                   name="password"

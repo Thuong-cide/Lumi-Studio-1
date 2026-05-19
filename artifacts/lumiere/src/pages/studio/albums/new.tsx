@@ -1,9 +1,10 @@
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { useCreateAlbum, getListAlbumsQueryKey } from "@workspace/api-client-react";
+import { useCreateAlbum, getListAlbumsQueryKey, useGetMe, getGetMeQueryKey } from "@workspace/api-client-react";
 import { useLocation } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
+import { useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Form,
@@ -35,18 +36,27 @@ export default function NewAlbum() {
   const [, setLocation] = useLocation();
   const createAlbum = useCreateAlbum();
   const queryClient = useQueryClient();
+  const { data: me } = useGetMe({ query: { queryKey: getGetMeQueryKey() } });
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
       title: "",
       description: "",
-      maxSelection: 0,
+      maxSelection: me?.studio?.defaultMaxSelection ?? 0,
       allowDownload: false,
       allowNotes: true,
       isPublic: false,
     },
   });
+
+  // Cập nhật khi dữ liệu studio tải xong
+  useEffect(() => {
+    const defaultMax = me?.studio?.defaultMaxSelection ?? 0;
+    if (defaultMax > 0 && !form.formState.isDirty) {
+      form.setValue("maxSelection", defaultMax);
+    }
+  }, [me?.studio?.defaultMaxSelection]);
 
   function onSubmit(values: z.infer<typeof formSchema>) {
     createAlbum.mutate(

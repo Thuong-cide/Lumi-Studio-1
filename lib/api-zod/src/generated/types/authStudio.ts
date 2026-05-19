@@ -13,4 +13,5 @@ export interface AuthStudio {
   googleDriveConnected: boolean;
   /** @nullable */
   rootFolderId?: string | null;
+  defaultMaxSelection?: number;
 }

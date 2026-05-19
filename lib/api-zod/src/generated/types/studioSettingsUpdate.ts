@@ -9,4 +9,5 @@
 export interface StudioSettingsUpdate {
   name?: string;
   password?: string;
+  defaultMaxSelection?: number;
 }

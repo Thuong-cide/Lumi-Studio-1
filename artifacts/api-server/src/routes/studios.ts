@@ -12,7 +12,7 @@ const router = Router();
 router.patch("/studios/settings", async (req, res): Promise<void> => {
   try {
     const payload = requireAuth(req, "STUDIO");
-    const { name, password } = req.body;
+    const { name, password, defaultMaxSelection } = req.body;
     const data: Record<string, unknown> = {};
     if (name?.trim()) data.name = name.trim();
     if (password) {
@@ -21,6 +21,9 @@ router.patch("/studios/settings", async (req, res): Promise<void> => {
         return;
       }
       data.passwordHash = await hashPassword(password);
+    }
+    if (defaultMaxSelection !== undefined) {
+      data.defaultMaxSelection = Math.max(0, Number(defaultMaxSelection) || 0);
     }
     if (Object.keys(data).length === 0) {
       res.status(400).json({ error: "Không có thông tin cần cập nhật" });

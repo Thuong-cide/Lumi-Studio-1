@@ -126,6 +126,7 @@ router.get("/auth/me", async (req, res): Promise<void> => {
       status: studiosTable.status,
       googleDriveRefreshToken: studiosTable.googleDriveRefreshToken,
       rootFolderId: studiosTable.rootFolderId,
+      defaultMaxSelection: studiosTable.defaultMaxSelection,
     }).from(studiosTable).where(eq(studiosTable.id, payload.id));
 
     if (!studio) {
@@ -140,6 +141,7 @@ router.get("/auth/me", async (req, res): Promise<void> => {
         email: studio.email,
         googleDriveConnected: !!studio.googleDriveRefreshToken,
         rootFolderId: studio.rootFolderId,
+        defaultMaxSelection: studio.defaultMaxSelection ?? 0,
       },
     });
   } catch (e) {
