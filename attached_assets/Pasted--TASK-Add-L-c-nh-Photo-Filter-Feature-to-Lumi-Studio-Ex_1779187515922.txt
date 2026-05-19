@@ -1,0 +1,167 @@
+## 🎯 TASK: Add "Lọc Ảnh" (Photo Filter) Feature to Lumi Studio
+
+### Existing App
+This app lets studio clients:
+- Browse and select photos
+- Export a list of selected file names (no extension, e.g. ["DSC_0001", "DSC_0002"])
+
+Do NOT modify existing functionality. Only ADD a new tab/page.
+
+---
+
+## New Feature: Lọc Ảnh (Photo Filter)
+
+### Step 1 — Add a new Tab "Lọc Ảnh"
+Add it next to the existing tab in the navigation.
+
+---
+
+### Step 2 — Import file name list
+- Button: **"Nhận danh sách từ Chọn Ảnh"** → reads the current selected file name list 
+  from app state (share state between tabs)
+- Button: **"Tải file .txt / .csv"** → manual import fallback
+- Show preview: "Đã nhận X file names"
+
+---
+
+### Step 3 — Source folder picker
+```js
+const srcHandle = await window.showDirectoryPicker({ mode: 'read' });
+```
+- Button: "📁 Chọn thư mục nguồn (ảnh gốc)"
+- Show selected path below button
+- Scan folder recursively to find all files
+
+---
+
+### Step 4 — Destination folder picker
+Two options (radio/toggle):
+- **Option A**: "Chọn thư mục đích" → `window.showDirectoryPicker({ mode: 'readwrite' })`
+- **Option B**: "Tạo thư mục con" → user types a subfolder name (e.g. "Culled") 
+  → create it inside a chosen parent:
+```js
+  const destHandle = await parentHandle.getDirectoryHandle(subfolderName, { create: true });
+```
+
+---
+
+### Step 5 — Format selection
+Checkbox group, default: JPG checked
+
+| Format | Extensions |
+|--------|-----------|
+| JPG | .jpg, .jpeg |
+| NEF (Nikon RAW) | .nef |
+| CR2 (Canon RAW) | .cr2 |
+| CR3 (Canon RAW) | .cr3 |
+| ARW (Sony RAW) | .arw |
+| DNG | .dng |
+| RW2 (Panasonic) | .rw2 |
+| ORF (Olympus) | .orf |
+| RAF (Fujifilm) | .raf |
+
+Add quick buttons: **"Chọn tất cả RAW"** / **"Bỏ chọn RAW"**
+
+---
+
+### Step 6 — Filter & Copy engine
+
+```js
+// Get all files recursively
+async function getAllFiles(dirHandle) {
+  const files = [];
+  for await (const [name, handle] of dirHandle.entries()) {
+    if (handle.kind === 'file') {
+      files.push({ name, handle });
+    } else {
+      const sub = await getAllFiles(handle);
+      files.push(...sub);
+    }
+  }
+  return files;
+}
+
+// Filter by name list + selected formats
+function filterFiles(allFiles, nameList, selectedExts) {
+  const nameSet = new Set(nameList.map(n => n.trim().toUpperCase()));
+  const extSet = new Set(selectedExts.map(e => e.replace('.','').toUpperCase()));
+  return allFiles.filter(f => {
+    const parts = f.name.split('.');
+    const ext = parts.pop().toUpperCase();
+    const base = parts.join('.').toUpperCase();
+    return nameSet.has(base) && extSet.has(ext);
+  });
+}
+
+// Copy matched files
+async function copyFiles(matchedFiles, destHandle, onProgress) {
+  let done = 0;
+  for (const f of matchedFiles) {
+    const file = await f.handle.getFile();
+    const newHandle = await destHandle.getFileHandle(file.name, { create: true });
+    const writable = await newHandle.createWritable();
+    await writable.write(await file.arrayBuffer());
+    await writable.close();
+    done++;
+    onProgress(done, matchedFiles.length);
+  }
+}
+```
+
+---
+
+### Step 7 — Progress & Results UI
+
+During copy:
+- Progress bar: "Đang copy: 24 / 48 files..."
+
+After complete:
+- ✅ "Đã copy X files thành công"
+- ⚠️ "Không tìm thấy Y files trong thư mục nguồn:"
+  - Expandable list of missing file names
+- Button: **"Xuất danh sách thiếu (.txt)"**
+
+---
+
+### Step 8 — Browser compatibility check
+On page load of this tab:
+```js
+if (!('showDirectoryPicker' in window)) {
+  // Show banner:
+  // "⚠️ Tính năng Lọc Ảnh yêu cầu Chrome hoặc Edge trên máy tính (desktop). 
+  //  Vui lòng mở lại bằng Chrome."
+}
+```
+
+---
+
+### UI Layout (Vietnamese labels)
+┌─────────────────────────────────────────────┐
+│  📋 Danh sách: [Nhận từ Chọn Ảnh] [Tải .txt]│
+│  → 48 file names đã nhận                   │
+├─────────────────────────────────────────────┤
+│  📁 Nguồn:  [Chọn thư mục]  → D:/DCIM/     │
+├─────────────────────────────────────────────┤
+│  💾 Đích:   ○ Chọn thư mục  ● Tạo thư mục con│
+│             Tên thư mục con: [Culled      ] │
+│             [Chọn thư mục cha]              │
+├─────────────────────────────────────────────┤
+│  📷 Định dạng:                              │
+│  ☑ JPG  ☑ NEF  ☐ CR2  ☐ CR3               │
+│  ☐ ARW  ☐ DNG  ☐ RW2  ☐ ORF  ☐ RAF        │
+│  [Chọn tất cả RAW]  [Bỏ chọn RAW]          │
+├─────────────────────────────────────────────┤
+│           [🚀 Bắt đầu Lọc Ảnh]             │
+├─────────────────────────────────────────────┤
+│  ████████████░░░░░  62% (30/48)             │
+│  ✅ 30 copied   ⚠️ 2 not found              │
+│  [Xuất danh sách thiếu]                     │
+└─────────────────────────────────────────────┘
+
+---
+
+### Notes
+- All file operations are **client-side only** (File System Access API) — no server upload
+- Support large folders (500–2000 files) without freezing — use async/await properly
+- Keep the existing app's visual style and color scheme
+- Vietnamese UI text throughout

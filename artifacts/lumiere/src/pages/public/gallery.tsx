@@ -6,15 +6,17 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Heart, X, Check, Loader2, ChevronLeft, ChevronRight } from "lucide-react";
+import { Heart, X, Check, Loader2, ChevronLeft, ChevronRight, Filter } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "@/hooks/use-toast";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
+import LocAnh from "./loc-anh";
 
 export default function PublicGallery() {
   const { slug } = useParams();
   const [customerName, setCustomerName] = useState("");
   const [isJoined, setIsJoined] = useState(false);
+  const [activeTab, setActiveTab] = useState<"chon-anh" | "loc-anh">("chon-anh");
   const [fullscreenIndex, setFullscreenIndex] = useState<number | null>(null);
   const [noteOpenFor, setNoteOpenFor] = useState<string | null>(null);
   const [noteText, setNoteText] = useState("");
@@ -66,6 +68,14 @@ export default function PublicGallery() {
 
   const selectedCount = Object.values(localSelections).filter(v => v.selected).length;
   const maxSelection = album?.maxSelection || 0;
+
+  const selectedFileNames = photos
+    .filter(p => localSelections[p.id]?.selected)
+    .map(p => {
+      const parts = p.filename.split(".");
+      parts.pop();
+      return parts.join(".");
+    });
 
   // ── Zoom helpers ──
   function resetZoom() {
@@ -335,13 +345,43 @@ export default function PublicGallery() {
               Xin chào, {customerName}
             </div>
             <div className="bg-primary text-primary-foreground px-4 py-1.5 rounded-full text-sm font-medium shadow-sm">
-              Đã chọn: {selectedCount} / {maxSelection}
+              Đã chọn: {selectedCount}{maxSelection > 0 ? ` / ${maxSelection}` : ""}
             </div>
           </div>
         </div>
+        {/* Tab Bar */}
+        <div className="max-w-7xl mx-auto px-4 flex border-t border-border/50">
+          <button
+            onClick={() => setActiveTab("chon-anh")}
+            className={`px-5 py-2.5 text-sm font-medium border-b-2 transition-colors ${
+              activeTab === "chon-anh"
+                ? "border-primary text-primary"
+                : "border-transparent text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            🖼 Chọn Ảnh
+          </button>
+          <button
+            onClick={() => setActiveTab("loc-anh")}
+            className={`flex items-center gap-1.5 px-5 py-2.5 text-sm font-medium border-b-2 transition-colors ${
+              activeTab === "loc-anh"
+                ? "border-primary text-primary"
+                : "border-transparent text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            <Filter className="h-3.5 w-3.5" />
+            Lọc Ảnh
+          </button>
+        </div>
       </div>
 
+      {/* Lọc Ảnh Tab */}
+      {activeTab === "loc-anh" && (
+        <LocAnh selectedFileNames={selectedFileNames} />
+      )}
+
       {/* Grid */}
+      {activeTab === "chon-anh" && (
       <div className="max-w-7xl mx-auto px-4 py-8">
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2 md:gap-4">
           {photos.map((photo, index) => {
@@ -412,6 +452,7 @@ export default function PublicGallery() {
           })}
         </div>
       </div>
+      )}
 
       {/* Note Dialog */}
       <Dialog open={!!noteOpenFor} onOpenChange={(open) => !open && setNoteOpenFor(null)}>
