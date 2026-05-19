@@ -13,8 +13,9 @@ import { Dialog, DialogContent } from "@/components/ui/dialog";
 
 export default function PublicGallery() {
   const { slug } = useParams();
-  const [customerName, setCustomerName] = useState("");
-  const [isJoined, setIsJoined] = useState(false);
+  const savedName = typeof window !== "undefined" ? (localStorage.getItem(`lumiere_name_${slug}`) || "") : "";
+  const [customerName, setCustomerName] = useState(savedName);
+  const [isJoined, setIsJoined] = useState(savedName.length >= 2);
   const [fullscreenIndex, setFullscreenIndex] = useState<number | null>(null);
   const [noteOpenFor, setNoteOpenFor] = useState<string | null>(null);
   const [noteText, setNoteText] = useState("");
@@ -211,8 +212,14 @@ export default function PublicGallery() {
   const handleJoin = (e: React.FormEvent) => {
     e.preventDefault();
     if (customerName.trim().length > 1) {
+      localStorage.setItem(`lumiere_name_${slug}`, customerName.trim());
       setIsJoined(true);
     }
+  };
+
+  const handleChangeName = () => {
+    localStorage.removeItem(`lumiere_name_${slug}`);
+    setIsJoined(false);
   };
 
   const handleToggleSelect = (photoId: string) => {
@@ -332,9 +339,13 @@ export default function PublicGallery() {
         <div className="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
           <div className="font-serif font-bold text-xl line-clamp-1">{album.title}</div>
           <div className="flex items-center gap-4">
-            <div className="text-sm font-medium hidden sm:block">
-              Xin chào, {customerName}
-            </div>
+            <button
+              onClick={handleChangeName}
+              className="text-sm font-medium hidden sm:block hover:text-primary transition-colors"
+              title="Đổi tên"
+            >
+              Xin chào, <span className="underline underline-offset-2 decoration-dotted">{customerName}</span>
+            </button>
             <div className="bg-primary text-primary-foreground px-4 py-1.5 rounded-full text-sm font-medium shadow-sm">
               Đã chọn: {selectedCount}{maxSelection > 0 ? ` / ${maxSelection}` : ""}
             </div>
