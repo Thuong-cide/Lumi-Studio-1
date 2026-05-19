@@ -3,15 +3,26 @@ import { useListAlbums, getListAlbumsQueryKey } from "@workspace/api-client-reac
 import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Plus, Image as ImageIcon, Users, Lock, Globe, Link as LinkIcon, Check } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
+import { Plus, Image as ImageIcon, Users, Lock, Globe, Link as LinkIcon, Check, QrCode, Download } from "lucide-react";
 import { format } from "date-fns";
 import { motion } from "framer-motion";
+import { QRCodeSVG, QRCodeCanvas } from "qrcode.react";
+
+type Album = { id: string; slug: string; title: string };
 
 export default function StudioAlbums() {
   const { data, isLoading } = useListAlbums({
     query: { queryKey: getListAlbumsQueryKey() }
   });
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [qrAlbum, setQrAlbum] = useState<Album | null>(null);
 
   function copyLink(e: React.MouseEvent, album: { id: string; slug: string }) {
     e.preventDefault();
@@ -22,6 +33,23 @@ export default function StudioAlbums() {
       setCopiedId(album.id);
       setTimeout(() => setCopiedId(null), 2000);
     });
+  }
+
+  function openQr(e: React.MouseEvent, album: Album) {
+    e.preventDefault();
+    e.stopPropagation();
+    setQrAlbum(album);
+  }
+
+  function downloadQr() {
+    if (!qrAlbum) return;
+    const canvas = document.getElementById("qr-download-canvas") as HTMLCanvasElement | null;
+    if (!canvas) return;
+    const url = canvas.toDataURL("image/png");
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `qr-${qrAlbum.slug}.png`;
+    a.click();
   }
 
   const container = {
@@ -36,6 +64,8 @@ export default function StudioAlbums() {
     hidden: { opacity: 0, y: 20 },
     show: { opacity: 1, y: 0 }
   };
+
+  const qrValue = qrAlbum ? `${window.location.origin}/album/${qrAlbum.slug}` : "";
 
   return (
     <div className="space-y-8">
@@ -82,7 +112,6 @@ export default function StudioAlbums() {
                 <Card className="h-full cursor-pointer hover-elevate no-default-hover-elevate hover:shadow-lg transition-all hover:border-primary/50 group overflow-hidden">
                   <CardContent className="p-0 flex flex-col h-full">
                     <div className="h-32 bg-muted flex items-center justify-center border-b relative">
-                      {/* Thumbnail logic would go here if we had one pre-computed, fallback to icon */}
                       <ImageIcon className="h-8 w-8 text-muted-foreground/30 group-hover:text-primary/30 transition-colors" />
                       <div className="absolute top-3 right-3">
                         {album.isPublic ? (
@@ -117,21 +146,25 @@ export default function StudioAlbums() {
                             {album.selectionCount || 0}
                           </span>
                         </div>
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-1.5">
                           <span className="text-xs">{format(new Date(album.createdAt), "dd/MM/yyyy")}</span>
+                          <button
+                            onClick={(e) => openQr(e, album)}
+                            title="Xem QR Code"
+                            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all bg-muted/60 text-muted-foreground hover:bg-accent/10 hover:text-accent"
+                          >
+                            <QrCode size={13} />
+                          </button>
                           <button
                             onClick={(e) => copyLink(e, album)}
                             title="Copy link khách chọn ảnh"
-                            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                            className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all ${
                               copiedId === album.id
-                                ? 'bg-success/15 text-success'
-                                : 'bg-sand text-warm-gray hover:bg-accent/10 hover:text-accent'
+                                ? 'bg-green-500/15 text-green-600'
+                                : 'bg-muted/60 text-muted-foreground hover:bg-accent/10 hover:text-accent'
                             }`}
                           >
-                            {copiedId === album.id
-                              ? <Check size={13} />
-                              : <LinkIcon size={13} />}
-                            {copiedId === album.id ? 'Đã copy!' : 'Copy link'}
+                            {copiedId === album.id ? <Check size={13} /> : <LinkIcon size={13} />}
                           </button>
                         </div>
                       </div>
@@ -143,6 +176,63 @@ export default function StudioAlbums() {
           ))}
         </motion.div>
       )}
+
+      <Dialog open={!!qrAlbum} onOpenChange={(open) => { if (!open) setQrAlbum(null); }}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="font-serif">QR Code — {qrAlbum?.title}</DialogTitle>
+            <DialogDescription>
+              Khách hàng quét mã này để mở album và chọn ảnh.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="flex flex-col items-center gap-6 py-2">
+            <div className="p-4 bg-white rounded-xl shadow-inner border">
+              <QRCodeSVG
+                value={qrValue}
+                size={200}
+                level="M"
+                includeMargin={false}
+              />
+            </div>
+
+            <p className="text-xs text-muted-foreground text-center break-all px-2">
+              {qrValue}
+            </p>
+
+            <div className="hidden">
+              <QRCodeCanvas
+                id="qr-download-canvas"
+                value={qrValue}
+                size={512}
+                level="M"
+                includeMargin={true}
+              />
+            </div>
+
+            <div className="flex gap-2 w-full">
+              <Button
+                variant="outline"
+                className="flex-1"
+                onClick={downloadQr}
+              >
+                <Download className="h-4 w-4 mr-2" />
+                Tải PNG
+              </Button>
+              <Button
+                className="flex-1 bg-primary text-primary-foreground hover:bg-primary/90"
+                onClick={(e) => {
+                  if (qrAlbum) copyLink(e as unknown as React.MouseEvent, qrAlbum);
+                  setQrAlbum(null);
+                }}
+              >
+                {copiedId === qrAlbum?.id ? <Check className="h-4 w-4 mr-2" /> : <LinkIcon className="h-4 w-4 mr-2" />}
+                {copiedId === qrAlbum?.id ? 'Đã copy!' : 'Copy link'}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
