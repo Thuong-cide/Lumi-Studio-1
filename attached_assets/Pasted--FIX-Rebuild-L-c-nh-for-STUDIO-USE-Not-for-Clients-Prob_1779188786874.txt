@@ -1,0 +1,60 @@
+## 🔧 FIX: Rebuild "Lọc Ảnh" for STUDIO USE — Not for Clients
+
+### Problem with current implementation
+The current "Lọc Ảnh" feature was built for clients to use.
+This is WRONG. Please rebuild it completely for studio staff use.
+
+---
+
+### Who uses this feature
+- **User**: Studio staff/editor (not the client)
+- **Device**: Studio desktop computer (Windows/Mac) running Chrome or Edge
+- **When**: After client selects photos (from the "Chọn Ảnh" tab), 
+  studio staff opens this tool to physically copy matching RAW/JPG files 
+  from the memory card or hard drive to an editing folder
+
+---
+
+### Workflow (studio perspective)
+1. Client finishes selecting photos on their device → exports a file name list
+2. Studio staff receives that file name list (already in app state from "Chọn Ảnh" tab)
+3. Staff opens "Lọc Ảnh" tab on the STUDIO COMPUTER
+4. Staff points to the source folder (memory card, D:/DCIM, external drive, etc.)
+5. Staff chooses where to copy files (editing folder, project folder, or new subfolder)
+6. Staff selects format (JPG proof copies OR RAW originals for editing)
+7. App copies matching files automatically
+8. Staff gets a report of what was copied and what's missing
+
+---
+
+### Key difference from client-facing tool
+- Uses File System Access API to read LOCAL DISK directly (not file upload)
+- Staff should NEVER have to manually upload files — they work with local paths
+- The tool accesses the computer's file system like a desktop app
+- Large batches expected: 200–1000+ files per session
+- RAW formats are primary use case (NEF, CR2, CR3, ARW, etc.)
+
+---
+
+### UI must reflect studio workflow
+
+REMOVE any:
+- File upload buttons (no drag & drop for individual files)
+- Client-facing language
+- Mobile-friendly design choices that sacrifice desktop functionality
+
+ADD / KEEP:
+- [📁 Chọn thư mục nguồn] → opens folder picker for memory card / drive
+- [💾 Chọn thư mục đích] OR [➕ Tạo thư mục con]
+- Format checkboxes (JPG + all RAW types)
+- Progress bar for bulk copy
+- Missing files report + export
+
+---
+
+### Language/labels (Vietnamese, studio context)
+- "Thư mục nguồn" = source (memory card, camera drive)
+- "Thư mục đích" = destination (editing project folder)  
+- "Tạo thư mục con" = create subfolder inside destination
+- "Bắt đầu lọc" = start filtering/copying
+- "File không tìm thấy" = files not found in source
