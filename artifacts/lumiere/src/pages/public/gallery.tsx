@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useGetPublicAlbum, getGetPublicAlbumQueryKey, useSelectPhoto } from "@workspace/api-client-react";
 import { useParams } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
@@ -64,6 +64,24 @@ export default function PublicGallery() {
   const photos = album?.photos || [];
 
   const [localSelections, setLocalSelections] = useState<Record<string, { selected: boolean, note?: string }>>({});
+  const [selectionsLoaded, setSelectionsLoaded] = useState(false);
+
+  useEffect(() => {
+    if (!isJoined || !slug || !customerName || selectionsLoaded) return;
+    fetch(`/api/public/album/${encodeURIComponent(slug)}/my-selections?name=${encodeURIComponent(customerName)}`)
+      .then(r => r.json())
+      .then((data: { selections?: Array<{ photoId: string; selected: boolean; note: string | null }> }) => {
+        if (data.selections?.length) {
+          const restored: Record<string, { selected: boolean; note?: string }> = {};
+          data.selections.forEach(s => {
+            restored[s.photoId] = { selected: s.selected, note: s.note ?? undefined };
+          });
+          setLocalSelections(restored);
+        }
+        setSelectionsLoaded(true);
+      })
+      .catch(() => setSelectionsLoaded(true));
+  }, [isJoined, slug, customerName, selectionsLoaded]);
 
   const selectedCount = Object.values(localSelections).filter(v => v.selected).length;
   const maxSelection = album?.maxSelection || 0;

@@ -35,6 +35,30 @@ router.get("/public/album/:slug", async (req, res): Promise<void> => {
   }
 });
 
+router.get("/public/album/:slug/my-selections", async (req, res): Promise<void> => {
+  try {
+    const slug = Array.isArray(req.params.slug) ? req.params.slug[0] : req.params.slug;
+    const name = typeof req.query.name === "string" ? req.query.name.trim() : "";
+    if (!name) {
+      res.status(400).json({ error: "Thiếu tên khách hàng" });
+      return;
+    }
+    const [album] = await db.select().from(albumsTable).where(and(eq(albumsTable.slug, slug), eq(albumsTable.isPublic, true)));
+    if (!album) {
+      res.status(404).json({ error: "Album không tìm thấy" });
+      return;
+    }
+    const rows = await db.select().from(selectionsTable).where(and(
+      eq(selectionsTable.albumId, album.id),
+      eq(selectionsTable.customerName, name)
+    ));
+    res.json({ selections: rows.map(r => ({ photoId: r.photoId, selected: r.selected, note: r.note })) });
+  } catch (e) {
+    logger.error(e, "[MY-SELECTIONS]");
+    res.status(500).json({ error: "Lỗi server" });
+  }
+});
+
 router.post("/public/album/:slug/select", async (req, res): Promise<void> => {
   try {
     const slug = Array.isArray(req.params.slug) ? req.params.slug[0] : req.params.slug;
