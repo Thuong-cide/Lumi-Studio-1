@@ -47,3 +47,4 @@ channel = "stable-25_05"
 [userenv.shared]
 GOOGLE_REDIRECT_URI = "https://55f9a1d6-ad67-451a-9966-87fdbd327182-00-1o57312fg87uu.pike.replit.dev/api/auth/google/callback"
 GOOGLE_CLIENT_ID = "99270546854-67kuibqq74ergbibv13lvjgf1siv90ss.apps.googleusercontent.com"
+GOOGLE_CLIENT_SECRET = "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"
