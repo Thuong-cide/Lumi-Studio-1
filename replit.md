@@ -1,10 +1,10 @@
-# [Project name]
+# Lumière Studio
 
-_Replace the heading above with the project's name, and this line with one sentence describing what this app does for users._
+A SaaS platform for photography studios to manage client photo albums, track selections, and deliver galleries online.
 
 ## Run & Operate
 
-- `pnpm --filter @workspace/api-server run dev` — run the API server (port 5000)
+- `pnpm --filter @workspace/api-server run dev` — run the API server (port 8080)
 - `pnpm run typecheck` — full typecheck across all packages
 - `pnpm run build` — typecheck + build all packages
 - `pnpm --filter @workspace/api-spec run codegen` — regenerate API hooks and Zod schemas from the OpenAPI spec
@@ -14,31 +14,49 @@ _Replace the heading above with the project's name, and this line with one sente
 ## Stack
 
 - pnpm workspaces, Node.js 24, TypeScript 5.9
-- API: Express 5
+- Frontend: React + Vite (Lumière artifact at `/`)
+- API: Express 5 (api-server artifact at `/api`)
 - DB: PostgreSQL + Drizzle ORM
 - Validation: Zod (`zod/v4`), `drizzle-zod`
 - API codegen: Orval (from OpenAPI spec)
 - Build: esbuild (CJS bundle)
+- Auth: JWT via HTTP-only cookie (`lumiere_token`)
 
 ## Where things live
 
-_Populate as you build — short repo map plus pointers to the source-of-truth file for DB schema, API contracts, theme files, etc._
+- `artifacts/lumiere/` — React frontend (all pages: login, register, admin, studio dashboard, public gallery)
+- `artifacts/api-server/` — Express backend (auth, admin, studio, photos, drive proxy, public routes)
+- `lib/api-spec/openapi.yaml` — OpenAPI spec (source of truth for API contract)
+- `lib/db/src/schema/index.ts` — Drizzle ORM schema (admin_users, studios, albums, photos, selections)
+- `lib/api-client-react/src/generated/` — generated React Query hooks
+- `lib/api-zod/src/generated/` — generated Zod schemas
 
 ## Architecture decisions
 
-_Populate as you build — non-obvious choices a reader couldn't infer from the code (3-5 bullets)._
+- JWT stored in HTTP-only cookie (`lumiere_token`) — no localStorage tokens
+- Google Drive used as photo storage backend; files served through `/api/drive/proxy/:fileId`
+- Public gallery pages require no auth — accessed via `/album/:slug`
+- Admin seeded manually via `admin_users` table (no self-registration for admins)
+- Zoom fullscreen in gallery uses native touch events only (no external gesture library)
 
 ## Product
 
-_Describe the high-level user-facing capabilities of this app once they exist._
+- **Admin**: Approve/disable studios, view platform stats
+- **Studio Dashboard**: Create and manage photo albums, upload images to Google Drive, view client selections
+- **Public Gallery**: Clients enter their name, browse photos, heart-select them, add notes — all without an account
 
 ## User preferences
 
-_Populate as you build — explicit user instructions worth remembering across sessions._
+- Language: Vietnamese UI throughout
+- Zoom fullscreen feature (Lumière v5.1 spec): pinch-to-zoom, double-tap (2.5×), pan, swipe-to-navigate at 1×
 
 ## Gotchas
 
-_Populate as you build — sharp edges, "always run X before Y" rules._
+- Admin default credentials: `admin@lumiere.vn` / `admin123456` (change in production)
+- Google Drive integration requires: `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REDIRECT_URI` env vars
+- `JWT_SECRET` env var should be set in production (defaults to a dev secret)
+- After any OpenAPI spec change, run codegen before touching frontend hooks
+- `SESSION_SECRET` is available as a Replit secret
 
 ## Pointers
 

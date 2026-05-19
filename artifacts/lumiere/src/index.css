@@ -1,0 +1,146 @@
+@import url('https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700&family=Playfair+Display:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap');
+@import "tailwindcss";
+@import "tw-animate-css";
+@plugin "@tailwindcss/typography";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --color-background: hsl(var(--background));
+  --color-foreground: hsl(var(--foreground));
+  --color-border: hsl(var(--border));
+  --color-input: hsl(var(--input));
+  --color-ring: hsl(var(--ring));
+
+  --color-card: hsl(var(--card));
+  --color-card-foreground: hsl(var(--card-foreground));
+  --color-card-border: hsl(var(--card-border));
+
+  --color-popover: hsl(var(--popover));
+  --color-popover-foreground: hsl(var(--popover-foreground));
+  --color-popover-border: hsl(var(--popover-border));
+
+  --color-primary: hsl(var(--primary));
+  --color-primary-foreground: hsl(var(--primary-foreground));
+  --color-primary-border: var(--primary-border);
+
+  --color-secondary: hsl(var(--secondary));
+  --color-secondary-foreground: hsl(var(--secondary-foreground));
+  --color-secondary-border: var(--secondary-border);
+
+  --color-muted: hsl(var(--muted));
+  --color-muted-foreground: hsl(var(--muted-foreground));
+  --color-muted-border: var(--muted-border);
+
+  --color-accent: hsl(var(--accent));
+  --color-accent-foreground: hsl(var(--accent-foreground));
+  --color-accent-border: var(--accent-border);
+
+  --color-destructive: hsl(var(--destructive));
+  --color-destructive-foreground: hsl(var(--destructive-foreground));
+  --color-destructive-border: var(--destructive-border);
+
+  --font-sans: "Be Vietnam Pro", sans-serif;
+  --font-serif: "Playfair Display", serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+}
+
+:root {
+  /* Lumière Color Palette */
+  --white: #FAFAF8;
+  --cream: #F5F2EC;
+  --sand: #E8E2D9;
+  --stone: #C8BFB0;
+  --warm-gray: #8C8278;
+  --accent: #6B5B4E;
+  --accent-light: #9C8B7E;
+  --dark-warm: #3D3530;
+  --ink: #1A1512;
+  --gold: #B8965A;
+  --gold-light: #D4B483;
+  --success: #4A7C59;
+  --danger: #8B3A3A;
+  --info: #3B6D8C;
+
+  /* HSL mappings for Tailwind */
+  --background: 60 20% 98%; /* FAFAF8 */
+  --foreground: 22 18% 9%; /* 1A1512 */
+  
+  --card: 36 29% 94%; /* F5F2EC */
+  --card-foreground: 22 18% 9%;
+  --card-border: 36 21% 88%; /* E8E2D9 */
+
+  --popover: 60 20% 98%;
+  --popover-foreground: 22 18% 9%;
+  --popover-border: 36 21% 88%;
+
+  --primary: 27 16% 36%; /* 6B5B4E */
+  --primary-foreground: 60 20% 98%;
+  
+  --secondary: 36 21% 88%; /* E8E2D9 */
+  --secondary-foreground: 22 18% 9%;
+  
+  --muted: 36 21% 88%;
+  --muted-foreground: 27 9% 51%; /* 8C8278 */
+  
+  --accent: 40 38% 54%; /* B8965A */
+  --accent-foreground: 60 20% 98%;
+  
+  --destructive: 0 41% 39%; /* 8B3A3A */
+  --destructive-foreground: 60 20% 98%;
+
+  --border: 36 21% 88%;
+  --input: 36 21% 88%;
+  --ring: 27 16% 36%;
+
+  --radius: 0.25rem;
+}
+
+.dark {
+  --background: 22 18% 9%;
+  --foreground: 60 20% 98%;
+  
+  --card: 22 12% 16%; /* 3D3530 */
+  --card-foreground: 60 20% 98%;
+  --card-border: 27 16% 36%; /* 6B5B4E */
+
+  --popover: 22 18% 9%;
+  --popover-foreground: 60 20% 98%;
+  --popover-border: 27 16% 36%;
+
+  --primary: 36 21% 88%;
+  --primary-foreground: 22 18% 9%;
+  
+  --secondary: 27 16% 36%;
+  --secondary-foreground: 60 20% 98%;
+  
+  --muted: 22 12% 16%;
+  --muted-foreground: 27 13% 58%; /* 9C8B7E */
+  
+  --accent: 36 50% 67%; /* D4B483 */
+  --accent-foreground: 22 18% 9%;
+  
+  --destructive: 0 41% 39%;
+  --destructive-foreground: 60 20% 98%;
+
+  --border: 27 16% 36%;
+  --input: 27 16% 36%;
+  --ring: 36 21% 88%;
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply font-sans bg-background text-foreground;
+  }
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-serif font-normal;
+  }
+}

@@ -3,20 +3,33 @@ info:
   # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
-  description: API specification
+  description: Lumière Photography Studio SaaS API
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
     description: Health operations
+  - name: auth
+    description: Authentication
+  - name: admin
+    description: Admin operations
+  - name: studios
+    description: Studio operations
+  - name: albums
+    description: Album operations
+  - name: photos
+    description: Photo operations
+  - name: drive
+    description: Google Drive operations
+  - name: public
+    description: Public operations
 paths:
   /healthz:
     get:
       operationId: healthCheck
       tags: [health]
       summary: Health check
-      description: Returns server health status
       responses:
         "200":
           description: Healthy
@@ -24,13 +37,807 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  /auth/login:
+    post:
+      operationId: login
+      tags: [auth]
+      summary: Login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginInput"
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LoginResult"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /auth/register:
+    post:
+      operationId: register
+      tags: [auth]
+      summary: Register a new studio
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RegisterInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+        "400":
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /auth/logout:
+    post:
+      operationId: logout
+      tags: [auth]
+      summary: Logout
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+
+  /auth/me:
+    get:
+      operationId: getMe
+      tags: [auth]
+      summary: Get current user
+      responses:
+        "200":
+          description: Current user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MeResult"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /auth/google:
+    get:
+      operationId: getGoogleAuthUrl
+      tags: [auth]
+      summary: Get Google OAuth URL
+      responses:
+        "200":
+          description: Auth URL
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GoogleAuthUrl"
+
+  /admin/stats:
+    get:
+      operationId: getAdminStats
+      tags: [admin]
+      summary: Get platform stats
+      responses:
+        "200":
+          description: Stats
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminStats"
+
+  /admin/studios:
+    get:
+      operationId: listAdminStudios
+      tags: [admin]
+      summary: List all studios
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [PENDING, APPROVED, DISABLED]
+      responses:
+        "200":
+          description: Studios list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StudiosListResult"
+
+  /admin/studios/{id}:
+    patch:
+      operationId: updateStudioStatus
+      tags: [admin]
+      summary: Update studio status
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/StudioStatusUpdate"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StudioResult"
+    delete:
+      operationId: deleteStudio
+      tags: [admin]
+      summary: Delete studio
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+
+  /studios/settings:
+    patch:
+      operationId: updateStudioSettings
+      tags: [studios]
+      summary: Update studio profile
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/StudioSettingsUpdate"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+
+  /studios/albums:
+    get:
+      operationId: listAlbums
+      tags: [studios]
+      summary: List studio albums
+      responses:
+        "200":
+          description: Albums list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AlbumsListResult"
+    post:
+      operationId: createAlbum
+      tags: [studios]
+      summary: Create album
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AlbumInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AlbumResult"
+
+  /studios/albums/{id}:
+    get:
+      operationId: getAlbum
+      tags: [studios]
+      summary: Get album detail
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Album
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AlbumDetailResult"
+    patch:
+      operationId: updateAlbum
+      tags: [studios]
+      summary: Update album
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AlbumUpdate"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+    delete:
+      operationId: deleteAlbum
+      tags: [studios]
+      summary: Delete album
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+
+  /albums/{id}/photos:
+    get:
+      operationId: listPhotos
+      tags: [photos]
+      summary: List album photos
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Photos
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PhotosListResult"
+
+  /albums/{id}/photos/{photoId}:
+    delete:
+      operationId: deletePhoto
+      tags: [photos]
+      summary: Delete photo
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: photoId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+
+  /albums/{id}/selections:
+    get:
+      operationId: listSelections
+      tags: [albums]
+      summary: List album selections
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Selections
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SelectionsListResult"
+
+  /public/album/{slug}:
+    get:
+      operationId: getPublicAlbum
+      tags: [public]
+      summary: Get public album
+      parameters:
+        - name: slug
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Album
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PublicAlbum"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /public/album/{slug}/select:
+    post:
+      operationId: selectPhoto
+      tags: [public]
+      summary: Select/deselect a photo
+      parameters:
+        - name: slug
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PhotoSelectionInput"
+      responses:
+        "200":
+          description: Selection updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Selection"
+
 components:
   schemas:
     HealthStatus:
       type: object
+      required: [status]
       properties:
         status:
           type: string
-      required:
-        - status
 
+    ErrorResponse:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: string
+
+    SuccessResponse:
+      type: object
+      required: [success]
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+
+    LoginInput:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+        password:
+          type: string
+
+    LoginResult:
+      type: object
+      required: [success, role]
+      properties:
+        success:
+          type: boolean
+        role:
+          type: string
+          enum: [ADMIN, STUDIO]
+        studio:
+          type: object
+          properties:
+            id:
+              type: string
+            name:
+              type: string
+
+    RegisterInput:
+      type: object
+      required: [name, email, password]
+      properties:
+        name:
+          type: string
+        email:
+          type: string
+        password:
+          type: string
+
+    MeResult:
+      type: object
+      properties:
+        user:
+          $ref: "#/components/schemas/AuthUser"
+        studio:
+          $ref: "#/components/schemas/AuthStudio"
+
+    AuthUser:
+      type: object
+      required: [id, email, role]
+      properties:
+        id:
+          type: string
+        email:
+          type: string
+        role:
+          type: string
+          enum: [ADMIN, STUDIO]
+        status:
+          type: string
+
+    AuthStudio:
+      type: object
+      required: [id, name, email, googleDriveConnected]
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        email:
+          type: string
+        googleDriveConnected:
+          type: boolean
+        rootFolderId:
+          type: ["string", "null"]
+
+    GoogleAuthUrl:
+      type: object
+      required: [url]
+      properties:
+        url:
+          type: string
+
+    AdminStats:
+      type: object
+      required: [totalStudios, pendingStudios, approvedStudios, totalAlbums, totalPhotos, totalSelections]
+      properties:
+        totalStudios:
+          type: integer
+        pendingStudios:
+          type: integer
+        approvedStudios:
+          type: integer
+        totalAlbums:
+          type: integer
+        totalPhotos:
+          type: integer
+        totalSelections:
+          type: integer
+
+    Studio:
+      type: object
+      required: [id, name, email, status, createdAt, updatedAt]
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        email:
+          type: string
+        status:
+          type: string
+          enum: [PENDING, APPROVED, DISABLED]
+        googleDriveConnected:
+          type: boolean
+        createdAt:
+          type: string
+        updatedAt:
+          type: string
+        albumCount:
+          type: integer
+
+    StudiosListResult:
+      type: object
+      required: [studios]
+      properties:
+        studios:
+          type: array
+          items:
+            $ref: "#/components/schemas/Studio"
+
+    StudioResult:
+      type: object
+      required: [studio]
+      properties:
+        studio:
+          $ref: "#/components/schemas/Studio"
+
+    StudioStatusUpdate:
+      type: object
+      required: [status]
+      properties:
+        status:
+          type: string
+          enum: [PENDING, APPROVED, DISABLED]
+
+    StudioSettingsUpdate:
+      type: object
+      properties:
+        name:
+          type: string
+        password:
+          type: string
+
+    Album:
+      type: object
+      required: [id, studioId, title, slug, allowDownload, allowNotes, maxSelection, isPublic, createdAt, updatedAt]
+      properties:
+        id:
+          type: string
+        studioId:
+          type: string
+        title:
+          type: string
+        slug:
+          type: string
+        description:
+          type: ["string", "null"]
+        driveFolderId:
+          type: ["string", "null"]
+        allowDownload:
+          type: boolean
+        allowNotes:
+          type: boolean
+        maxSelection:
+          type: integer
+        isPublic:
+          type: boolean
+        createdAt:
+          type: string
+        updatedAt:
+          type: string
+        photoCount:
+          type: integer
+        selectionCount:
+          type: integer
+
+    AlbumInput:
+      type: object
+      required: [title]
+      properties:
+        title:
+          type: string
+        description:
+          type: string
+        maxSelection:
+          type: integer
+        allowDownload:
+          type: boolean
+        allowNotes:
+          type: boolean
+        isPublic:
+          type: boolean
+
+    AlbumUpdate:
+      type: object
+      properties:
+        title:
+          type: string
+        description:
+          type: string
+        maxSelection:
+          type: integer
+        allowDownload:
+          type: boolean
+        allowNotes:
+          type: boolean
+        isPublic:
+          type: boolean
+
+    AlbumsListResult:
+      type: object
+      required: [albums]
+      properties:
+        albums:
+          type: array
+          items:
+            $ref: "#/components/schemas/Album"
+
+    AlbumResult:
+      type: object
+      required: [album]
+      properties:
+        album:
+          $ref: "#/components/schemas/Album"
+
+    AlbumDetailResult:
+      type: object
+      required: [album]
+      properties:
+        album:
+          $ref: "#/components/schemas/AlbumDetail"
+
+    AlbumDetail:
+      type: object
+      required: [id, studioId, title, slug, allowDownload, allowNotes, maxSelection, isPublic, createdAt, updatedAt, photos]
+      properties:
+        id:
+          type: string
+        studioId:
+          type: string
+        title:
+          type: string
+        slug:
+          type: string
+        description:
+          type: ["string", "null"]
+        driveFolderId:
+          type: ["string", "null"]
+        allowDownload:
+          type: boolean
+        allowNotes:
+          type: boolean
+        maxSelection:
+          type: integer
+        isPublic:
+          type: boolean
+        createdAt:
+          type: string
+        updatedAt:
+          type: string
+        photos:
+          type: array
+          items:
+            $ref: "#/components/schemas/Photo"
+        selectionCount:
+          type: integer
+
+    Photo:
+      type: object
+      required: [id, albumId, driveFileId, filename, mimeType, order, createdAt]
+      properties:
+        id:
+          type: string
+        albumId:
+          type: string
+        driveFileId:
+          type: string
+        filename:
+          type: string
+        mimeType:
+          type: string
+        thumbnailUrl:
+          type: ["string", "null"]
+        width:
+          type: ["integer", "null"]
+        height:
+          type: ["integer", "null"]
+        order:
+          type: integer
+        createdAt:
+          type: string
+
+    PhotosListResult:
+      type: object
+      required: [photos]
+      properties:
+        photos:
+          type: array
+          items:
+            $ref: "#/components/schemas/Photo"
+
+    PhotoResult:
+      type: object
+      required: [photo]
+      properties:
+        photo:
+          $ref: "#/components/schemas/Photo"
+
+    Selection:
+      type: object
+      required: [id, albumId, photoId, customerName, selected, createdAt, updatedAt]
+      properties:
+        id:
+          type: string
+        albumId:
+          type: string
+        photoId:
+          type: string
+        customerName:
+          type: string
+        note:
+          type: ["string", "null"]
+        selected:
+          type: boolean
+        createdAt:
+          type: string
+        updatedAt:
+          type: string
+        photo:
+          $ref: "#/components/schemas/Photo"
+
+    SelectionsListResult:
+      type: object
+      required: [selections]
+      properties:
+        selections:
+          type: array
+          items:
+            $ref: "#/components/schemas/Selection"
+
+    PublicAlbum:
+      type: object
+      required: [id, title, slug, allowDownload, allowNotes, maxSelection, photos]
+      properties:
+        id:
+          type: string
+        title:
+          type: string
+        slug:
+          type: string
+        description:
+          type: ["string", "null"]
+        allowDownload:
+          type: boolean
+        allowNotes:
+          type: boolean
+        maxSelection:
+          type: integer
+        studio:
+          type: object
+          properties:
+            name:
+              type: string
+        photos:
+          type: array
+          items:
+            $ref: "#/components/schemas/Photo"
+
+    PhotoSelectionInput:
+      type: object
+      required: [photoId, customerName, selected]
+      properties:
+        photoId:
+          type: string
+        customerName:
+          type: string
+        note:
+          type: string
+        selected:
+          type: boolean

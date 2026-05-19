@@ -1,0 +1,31 @@
+kind = "web"
+previewPath = "/"
+title = "Lumière Studio"
+version = "1.0.0"
+id = "artifacts/lumiere"
+router = "path"
+
+[[integratedSkills]]
+name = "react-vite"
+version = "1.0.0"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 19130
+
+[services.development]
+run = "pnpm --filter @workspace/lumiere run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/lumiere", "run", "build" ]
+publicDir = "artifacts/lumiere/dist/public"
+serve = "static"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "19130"
+BASE_PATH = "/"
