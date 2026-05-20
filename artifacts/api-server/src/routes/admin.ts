@@ -2,7 +2,7 @@ import { Router } from "express";
 import { db } from "@workspace/db";
 import { studiosTable, albumsTable, photosTable, selectionsTable } from "@workspace/db";
 import { eq, count } from "drizzle-orm";
-import { requireAuth, getErrorStatus } from "../lib/auth";
+import { requireAuth, getErrorStatus, hashPassword } from "../lib/auth";
 
 const router = Router();
 
@@ -79,6 +79,30 @@ router.patch("/admin/studios/:id", async (req, res): Promise<void> => {
       .where(eq(studiosTable.id, id))
       .returning({ id: studiosTable.id, name: studiosTable.name, email: studiosTable.email, status: studiosTable.status, createdAt: studiosTable.createdAt, updatedAt: studiosTable.updatedAt });
     res.json({ studio: { ...studio, albumCount: 0, googleDriveConnected: false, createdAt: studio.createdAt.toISOString(), updatedAt: studio.updatedAt.toISOString() } });
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : "Server error";
+    res.status(getErrorStatus(msg)).json({ error: msg });
+  }
+});
+
+router.post("/admin/studios/:id/reset-password", async (req, res): Promise<void> => {
+  try {
+    requireAuth(req, "ADMIN");
+    const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+    const { newPassword } = req.body;
+    if (!newPassword || newPassword.length < 8) {
+      res.status(400).json({ error: "Mật khẩu mới phải có ít nhất 8 ký tự" });
+      return;
+    }
+    const [studio] = await db.select({ id: studiosTable.id }).from(studiosTable).where(eq(studiosTable.id, id));
+    if (!studio) {
+      res.status(404).json({ error: "Không tìm thấy studio" });
+      return;
+    }
+    await db.update(studiosTable)
+      .set({ passwordHash: await hashPassword(newPassword) })
+      .where(eq(studiosTable.id, id));
+    res.json({ success: true });
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : "Server error";
     res.status(getErrorStatus(msg)).json({ error: msg });

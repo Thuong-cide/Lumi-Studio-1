@@ -3,12 +3,14 @@ import { useListAdminStudios, getListAdminStudiosQueryKey, useUpdateStudioStatus
 import { useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "@/hooks/use-toast";
 import { format } from "date-fns";
 import { motion } from "framer-motion";
-import { MoreHorizontal, Check, X, Trash2 } from "lucide-react";
+import { MoreHorizontal, Check, X, Trash2, KeyRound } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -27,6 +29,13 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
 
 export default function AdminStudios() {
   const [statusFilter, setStatusFilter] = useState<"ALL" | "PENDING" | "APPROVED" | "DISABLED">("ALL");
@@ -34,6 +43,32 @@ export default function AdminStudios() {
   const updateStatus = useUpdateStudioStatus();
   const deleteStudio = useDeleteStudio();
   const [studioToDelete, setStudioToDelete] = useState<string | null>(null);
+
+  const [resetTarget, setResetTarget] = useState<{ id: string; name: string } | null>(null);
+  const [newPassword, setNewPassword] = useState("");
+  const [resetting, setResetting] = useState(false);
+
+  const handleResetPassword = async () => {
+    if (!resetTarget || newPassword.length < 8) return;
+    setResetting(true);
+    try {
+      const res = await fetch(`/api/admin/studios/${resetTarget.id}/reset-password`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ newPassword }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Lỗi server");
+      toast({ title: "Đã đặt lại mật khẩu", description: `Mật khẩu của ${resetTarget.name} đã được cập nhật.` });
+      setResetTarget(null);
+      setNewPassword("");
+    } catch (e) {
+      toast({ title: "Lỗi", description: e instanceof Error ? e.message : "Có lỗi xảy ra", variant: "destructive" });
+    } finally {
+      setResetting(false);
+    }
+  };
 
   const queryParams = statusFilter === "ALL" ? {} : { status: statusFilter };
   const { data, isLoading } = useListAdminStudios(queryParams, {
@@ -149,6 +184,11 @@ export default function AdminStudios() {
                           </DropdownMenuItem>
                         )}
                         <DropdownMenuSeparator />
+                        <DropdownMenuItem onClick={() => { setResetTarget({ id: studio.id, name: studio.name }); setNewPassword(""); }}>
+                          <KeyRound className="mr-2 h-4 w-4" />
+                          Đặt lại mật khẩu
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
                         <DropdownMenuItem className="text-destructive focus:bg-destructive/10" onClick={() => setStudioToDelete(studio.id)}>
                           <Trash2 className="mr-2 h-4 w-4" />
                           Xóa studio
@@ -162,6 +202,44 @@ export default function AdminStudios() {
           </CardContent>
         </Card>
       </Tabs>
+
+      {/* ── Dialog đặt lại mật khẩu ── */}
+      <Dialog open={!!resetTarget} onOpenChange={(open) => { if (!open) { setResetTarget(null); setNewPassword(""); } }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="font-serif">Đặt lại mật khẩu</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <p className="text-sm text-muted-foreground">
+              Đặt mật khẩu mới cho studio <span className="font-semibold text-foreground">{resetTarget?.name}</span>.
+            </p>
+            <div className="space-y-2">
+              <Label htmlFor="new-password">Mật khẩu mới</Label>
+              <Input
+                id="new-password"
+                type="password"
+                placeholder="Ít nhất 8 ký tự"
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && handleResetPassword()}
+                autoFocus
+              />
+              {newPassword.length > 0 && newPassword.length < 8 && (
+                <p className="text-xs text-destructive">Mật khẩu phải có ít nhất 8 ký tự</p>
+              )}
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => { setResetTarget(null); setNewPassword(""); }}>Hủy</Button>
+            <Button
+              onClick={handleResetPassword}
+              disabled={newPassword.length < 8 || resetting}
+            >
+              {resetting ? "Đang cập nhật..." : "Xác nhận"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <AlertDialog open={!!studioToDelete} onOpenChange={(open) => !open && setStudioToDelete(null)}>
         <AlertDialogContent>
