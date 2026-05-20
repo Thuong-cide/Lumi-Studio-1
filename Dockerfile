@@ -15,12 +15,13 @@ RUN PORT=9200 pnpm --filter @workspace/lumiere build
 
 RUN pnpm --filter @workspace/api-server build
 
+RUN pnpm deploy --filter @workspace/api-server --prod /app/api-deploy
+
 FROM node:22-alpine AS runner
 
 WORKDIR /app
 
-COPY --from=builder /app/node_modules ./node_modules
-COPY --from=builder /app/lib ./lib
+COPY --from=builder /app/api-deploy/node_modules ./node_modules
 COPY --from=builder /app/artifacts/api-server/dist ./dist
 COPY --from=builder /app/artifacts/lumiere/dist/public ./public
 COPY --from=builder /app/scripts ./scripts
