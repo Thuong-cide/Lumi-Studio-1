@@ -3,6 +3,7 @@ import { db } from "@workspace/db";
 import { albumsTable, photosTable, selectionsTable, studiosTable } from "@workspace/db";
 import { eq, and } from "drizzle-orm";
 import { logger } from "../lib/logger";
+import { rateLimit, getClientIp } from "../lib/rate-limit";
 
 const router = Router();
 
@@ -18,6 +19,7 @@ router.get("/public/album/:slug", async (req, res): Promise<void> => {
     const [studio] = await db.select({ name: studiosTable.name }).from(studiosTable).where(eq(studiosTable.id, album.studioId));
     const photos = await db.select().from(photosTable).where(eq(photosTable.albumId, album.id)).orderBy(photosTable.order);
 
+    res.set("Cache-Control", "public, s-maxage=60, stale-while-revalidate=300");
     res.json({
       id: album.id,
       title: album.title,
@@ -61,6 +63,13 @@ router.get("/public/album/:slug/my-selections", async (req, res): Promise<void> 
 
 router.post("/public/album/:slug/select", async (req, res): Promise<void> => {
   try {
+    const ip = getClientIp(req);
+    const limit = rateLimit(`select:${ip}`, { windowMs: 60_000, max: 60 });
+    if (!limit.success) {
+      res.status(429).set("Retry-After", String(Math.ceil((limit.resetTime - Date.now()) / 1000))).json({ error: "Quá nhiều yêu cầu. Vui lòng chờ một chút rồi thử lại." });
+      return;
+    }
+
     const slug = Array.isArray(req.params.slug) ? req.params.slug[0] : req.params.slug;
     const { photoId, customerName, note, selected } = req.body;
 

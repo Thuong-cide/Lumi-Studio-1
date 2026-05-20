@@ -389,7 +389,8 @@ export default function PublicGallery() {
                   src={`/api/drive/proxy/${photo.driveFileId}`}
                   alt={photo.filename}
                   className="w-full h-full object-cover cursor-pointer"
-                  loading="lazy"
+                  loading={index === 0 ? "eager" : "lazy"}
+                  decoding={index === 0 ? "sync" : "async"}
                   onClick={() => { setFullscreenIndex(index); resetZoom(); }}
                 />
 

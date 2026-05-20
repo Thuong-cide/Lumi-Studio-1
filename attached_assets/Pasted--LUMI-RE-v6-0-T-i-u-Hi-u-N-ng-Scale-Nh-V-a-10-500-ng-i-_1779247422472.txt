@@ -1,0 +1,314 @@
+# 🚀 LUMIÈRE v6.0 — Tối Ưu Hiệu Năng (Scale Nhỏ & Vừa: 10–500 người đồng thời)
+## Bổ sung vào app hiện có — KHÔNG tạo lại từ đầu — KHÔNG thay đổi logic nghiệp vụ
+
+> **Phạm vi:** Chỉ thêm/sửa các file được liệt kê. Giữ nguyên hoàn toàn các file khác.
+> **Mục tiêu:** App mượt mà khi nhiều khách cùng xem/chọn ảnh, studio upload đồng thời, không bị timeout hay chậm.
+
+---
+
+## PHẦN 1 — DATABASE INDEX
+
+**File:** `prisma/schema.prisma`
+
+Chỉ thêm các dòng `@@index` vào cuối mỗi model tương ứng. KHÔNG thay đổi bất kỳ field, relation, hay enum nào.
+
+```prisma
+model Album {
+  // ... giữ nguyên toàn bộ fields và relations hiện có ...
+
+  @@index([studioId, createdAt(sort: Desc)])  // query danh sách album của studio
+  @@index([isPublic, createdAt])              // filter album công khai
+}
+
+model Photo {
+  // ... giữ nguyên toàn bộ fields và relations hiện có ...
+
+  @@index([albumId, order])   // load ảnh theo thứ tự trong album
+  @@index([driveFileId])      // proxy lookup nhanh theo driveFileId
+}
+
+model Selection {
+  // ... giữ nguyên toàn bộ fields và relations hiện có ...
+
+  @@index([albumId, selected, customerName])  // query selections đã chọn theo khách
+}
+```
+
+Sau khi sửa schema, chạy lệnh:
+```bash
+npx prisma db push
+```
+
+---
+
+## PHẦN 2 — RATE LIMITING (chống spam & bảo vệ server)
+
+### 2.1 Tạo file mới: `src/lib/rate-limit.ts`
+
+```typescript
+// Rate limiting in-memory — phù hợp cho single-instance Replit
+// Không cần Redis, không cần thư viện ngoài
+
+interface RateLimitEntry {
+  count:     number
+  resetTime: number
+}
+
+const store = new Map<string, RateLimitEntry>()
+
+// Tự dọn entries cũ mỗi 5 phút để không leak memory
+setInterval(() => {
+  const now = Date.now()
+  for (const [key, entry] of store.entries()) {
+    if (entry.resetTime < now) store.delete(key)
+  }
+}, 5 * 60 * 1000)
+
+export interface RateLimitResult {
+  success:   boolean
+  remaining: number
+  resetTime: number
+}
+
+export function rateLimit(
+  key: string,
+  options: { windowMs: number; max: number }
+): RateLimitResult {
+  const now   = Date.now()
+  const entry = store.get(key)
+
+  if (!entry || entry.resetTime < now) {
+    store.set(key, { count: 1, resetTime: now + options.windowMs })
+    return { success: true, remaining: options.max - 1, resetTime: now + options.windowMs }
+  }
+
+  if (entry.count >= options.max) {
+    return { success: false, remaining: 0, resetTime: entry.resetTime }
+  }
+
+  entry.count++
+  return { success: true, remaining: options.max - entry.count, resetTime: entry.resetTime }
+}
+
+export function getClientIp(req: Request): string {
+  return (
+    req.headers.get('x-forwarded-for')?.split(',')[0].trim() ??
+    req.headers.get('x-real-ip') ??
+    'unknown'
+  )
+}
+```
+
+### 2.2 Áp dụng vào `src/app/api/public/album/[slug]/select/route.ts`
+
+Thêm 10 dòng vào đầu hàm `POST`, ngay sau dòng `try {`. Giữ nguyên toàn bộ code bên dưới:
+
+```typescript
+import { rateLimit, getClientIp } from '@/lib/rate-limit'
+
+export async function POST(req: NextRequest, { params }: { params: Promise<{ slug: string }> }) {
+  // ── THÊM MỚI: Rate limit ──
+  const ip    = getClientIp(req)
+  const limit = rateLimit(`select:${ip}`, { windowMs: 60_000, max: 60 })
+  if (!limit.success) {
+    return NextResponse.json(
+      { error: 'Quá nhiều yêu cầu. Vui lòng chờ một chút rồi thử lại.' },
+      {
+        status: 429,
+        headers: { 'Retry-After': String(Math.ceil((limit.resetTime - Date.now()) / 1000)) },
+      }
+    )
+  }
+  // ── KẾT THÚC THÊM MỚI ──
+
+  // ... giữ nguyên toàn bộ code hiện có bên dưới ...
+}
+```
+
+### 2.3 Áp dụng vào `src/app/api/drive/upload/route.ts`
+
+Tương tự, thêm vào đầu hàm `POST`:
+
+```typescript
+import { rateLimit, getClientIp } from '@/lib/rate-limit'
+
+export async function POST(req: NextRequest) {
+  // ── THÊM MỚI: Rate limit upload ──
+  const ip    = getClientIp(req)
+  const limit = rateLimit(`upload:${ip}`, { windowMs: 60_000, max: 30 })
+  if (!limit.success) {
+    return NextResponse.json(
+      { error: 'Upload quá nhanh. Vui lòng chờ một chút rồi thử lại.' },
+      { status: 429 }
+    )
+  }
+  // ── KẾT THÚC THÊM MỚI ──
+
+  // ... giữ nguyên toàn bộ code hiện có bên dưới ...
+}
+```
+
+---
+
+## PHẦN 3 — HTTP CACHE CHO DRIVE PROXY
+
+**File:** `src/app/api/drive/proxy/[fileId]/route.ts`
+
+Chỉ thay đổi phần `headers` trong `return new NextResponse(...)`. Giữ nguyên toàn bộ logic stream:
+
+```typescript
+// TRƯỚC:
+return new NextResponse(webStream, {
+  headers: {
+    'Content-Type': photo.mimeType || 'image/jpeg',
+    'Cache-Control': 'public, max-age=3600, stale-while-revalidate=86400',
+  },
+})
+
+// SAU — tăng cache lên 24h, thêm ETag:
+return new NextResponse(webStream, {
+  headers: {
+    'Content-Type': photo.mimeType || 'image/jpeg',
+    // Ảnh trên Drive không đổi sau khi upload → cache 24h
+    'Cache-Control': 'public, max-age=86400, stale-while-revalidate=604800',
+    // ETag giúp browser không re-download nếu ảnh chưa thay đổi
+    'ETag': `"${fileId}"`,
+  },
+})
+```
+
+---
+
+## PHẦN 4 — PRISMA CONNECTION POOL
+
+**File:** `src/lib/prisma.ts`
+
+Thay toàn bộ file bằng:
+
+```typescript
+import { PrismaClient } from '@prisma/client'
+
+const globalForPrisma = globalThis as unknown as { prisma: PrismaClient }
+
+export const prisma =
+  globalForPrisma.prisma ??
+  new PrismaClient({
+    log: process.env.NODE_ENV === 'development' ? ['error'] : ['error'],
+    datasources: {
+      db: {
+        url: process.env.DATABASE_URL,
+      },
+    },
+  })
+
+if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = prisma
+
+// Đóng connection gracefully khi process kết thúc
+process.on('beforeExit', async () => {
+  await prisma.$disconnect()
+})
+```
+
+Thêm vào `.env` (hoặc `.env.example`):
+
+```env
+# Giới hạn connection pool — phù hợp Replit với PostgreSQL hosted
+# Tăng nếu dùng PlanetScale/Supabase, giữ thấp nếu dùng free tier
+DATABASE_URL="postgresql://...?connection_limit=10&pool_timeout=20"
+```
+
+> ⚠️ Thêm `?connection_limit=10&pool_timeout=20` vào cuối DATABASE_URL hiện có nếu chưa có. Điều chỉnh `connection_limit` theo giới hạn của database provider:
+> - Supabase free: tối đa 60 connections → dùng `connection_limit=10`
+> - Neon free: tối đa 100 → dùng `connection_limit=15`
+> - PlanetScale: serverless, không cần giới hạn
+
+---
+
+## PHẦN 5 — CACHE METADATA ALBUM PHÍA PUBLIC
+
+**File:** `src/app/api/public/album/[slug]/route.ts`
+
+Thêm Cache-Control header vào response. Chỉ thay đổi dòng `return NextResponse.json(album)`:
+
+```typescript
+// TRƯỚC:
+return NextResponse.json(album)
+
+// SAU — cache metadata 60 giây:
+return NextResponse.json(album, {
+  headers: {
+    // Metadata album thay đổi ít — cache 60s, stale 5 phút
+    'Cache-Control': 'public, s-maxage=60, stale-while-revalidate=300',
+  },
+})
+```
+
+---
+
+## PHẦN 6 — LAZY LOAD ẢNH PHÍA CLIENT
+
+**File:** `src/app/album/[slug]/page.tsx`
+
+Thêm `loading="lazy"` và `decoding="async"` vào tất cả thẻ `<img>` hiển thị ảnh thumbnail trong grid. Browser sẽ tự chỉ load ảnh khi gần xuất hiện trong viewport, giảm số request đồng thời khi mới vào trang:
+
+```typescript
+// Tìm tất cả thẻ <img> trong phần grid gallery và thêm 2 attribute:
+<img
+  src={`/api/drive/proxy/${photo.driveFileId}`}
+  alt={photo.filename}
+  loading="lazy"       // ← THÊM
+  decoding="async"     // ← THÊM
+  className="..."      // giữ nguyên className hiện có
+/>
+
+// Ngoại lệ: ảnh đầu tiên (index 0) KHÔNG lazy load để hiện nhanh:
+<img
+  src={`/api/drive/proxy/${photos[0].driveFileId}`}
+  loading="eager"      // ← ảnh đầu load ngay
+  decoding="sync"
+  className="..."
+/>
+```
+
+---
+
+## CHECKLIST BẮT BUỘC
+
+**Database:**
+- [ ] Đã thêm `@@index` vào Album, Photo, Selection trong schema
+- [ ] Đã chạy `npx prisma db push` sau khi sửa schema
+- [ ] KHÔNG thay đổi bất kỳ field hay relation nào
+
+**Rate Limiting:**
+- [ ] File `src/lib/rate-limit.ts` đã được tạo
+- [ ] Import `rateLimit` và `getClientIp` từ `@/lib/rate-limit` (không phải đường dẫn khác)
+- [ ] Rate limit select: 60 req/phút mỗi IP
+- [ ] Rate limit upload: 30 req/phút mỗi IP
+- [ ] Trả về status `429` khi vượt giới hạn
+
+**Cache:**
+- [ ] Drive proxy: `max-age=86400` (24h) + có `ETag`
+- [ ] Public album metadata: `s-maxage=60, stale-while-revalidate=300`
+
+**Connection Pool:**
+- [ ] `DATABASE_URL` có `?connection_limit=10&pool_timeout=20`
+- [ ] `src/lib/prisma.ts` có `process.on('beforeExit', ...)` để disconnect gracefully
+
+**Lazy Load:**
+- [ ] Tất cả `<img>` trong grid có `loading="lazy"` và `decoding="async"`
+- [ ] Ảnh index 0 dùng `loading="eager"` (không lazy)
+
+---
+
+## KHÔNG LÀM (để tránh over-engineer cho scale nhỏ/vừa)
+
+- ❌ Không cài Redis / Upstash
+- ❌ Không thêm job queue (Bull, BullMQ)
+- ❌ Không phân trang ảnh (pagination) — load tất cả vẫn ổn với 50–500 ảnh/album
+- ❌ Không thêm CDN phức tạp
+- ❌ Không thay đổi cấu trúc database
+
+---
+
+*Lumière v6.0 — Performance cho scale nhỏ & vừa*
+*Cập nhật: 20/05/2026*

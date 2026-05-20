@@ -1,4 +1,4 @@
-import { pgTable, text, timestamp, boolean, integer, uuid } from "drizzle-orm/pg-core";
+import { pgTable, text, timestamp, boolean, integer, uuid, index } from "drizzle-orm/pg-core";
 
 export const adminUsersTable = pgTable("admin_users", {
   id: uuid("id").primaryKey().defaultRandom(),
@@ -34,7 +34,10 @@ export const albumsTable = pgTable("albums", {
   isPublic: boolean("is_public").notNull().default(true),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow().$onUpdate(() => new Date()),
-});
+}, (table) => [
+  index("albums_studio_id_created_at_idx").on(table.studioId, table.createdAt),
+  index("albums_is_public_created_at_idx").on(table.isPublic, table.createdAt),
+]);
 
 export const photosTable = pgTable("photos", {
   id: uuid("id").primaryKey().defaultRandom(),
@@ -47,7 +50,10 @@ export const photosTable = pgTable("photos", {
   height: integer("height"),
   order: integer("order").notNull().default(0),
   createdAt: timestamp("created_at").notNull().defaultNow(),
-});
+}, (table) => [
+  index("photos_album_id_order_idx").on(table.albumId, table.order),
+  index("photos_drive_file_id_idx").on(table.driveFileId),
+]);
 
 export const selectionsTable = pgTable("selections", {
   id: uuid("id").primaryKey().defaultRandom(),
@@ -58,4 +64,6 @@ export const selectionsTable = pgTable("selections", {
   selected: boolean("selected").notNull().default(false),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow().$onUpdate(() => new Date()),
-});
+}, (table) => [
+  index("selections_album_id_selected_customer_idx").on(table.albumId, table.selected, table.customerName),
+]);

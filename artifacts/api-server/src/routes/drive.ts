@@ -37,7 +37,8 @@ router.get("/drive/proxy/:fileId", async (req, res): Promise<void> => {
 
     const nodeStream = await getFileStream(studio.googleDriveRefreshToken, fileId);
     res.setHeader("Content-Type", photo.mimeType || "image/jpeg");
-    res.setHeader("Cache-Control", "public, max-age=3600, stale-while-revalidate=86400");
+    res.setHeader("Cache-Control", "public, max-age=86400, stale-while-revalidate=604800");
+    res.setHeader("ETag", `"${fileId}"`);
     nodeStream.pipe(res);
   } catch (e: unknown) {
     logger.error(e, "[PROXY]");

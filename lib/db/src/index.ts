@@ -10,7 +10,21 @@ if (!process.env.DATABASE_URL) {
   );
 }
 
-export const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+export const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  max: 10,
+  idleTimeoutMillis: 20000,
+  connectionTimeoutMillis: 20000,
+});
+
+pool.on("error", (err) => {
+  console.error("Unexpected PostgreSQL pool error", err);
+});
+
+process.on("beforeExit", async () => {
+  await pool.end();
+});
+
 export const db = drizzle(pool, { schema });
 
 export * from "./schema";

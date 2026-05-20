@@ -7,6 +7,7 @@ import { uploadFileToDrive } from "../lib/google-drive";
 import { studiosTable } from "@workspace/db";
 import multer from "multer";
 import { logger } from "../lib/logger";
+import { rateLimit, getClientIp } from "../lib/rate-limit";
 
 const router = Router();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 * 1024 * 1024 } });
@@ -101,6 +102,13 @@ router.get("/albums/:id/selections", async (req, res): Promise<void> => {
 
 router.post("/drive/upload", upload.single("file"), async (req, res): Promise<void> => {
   try {
+    const ip = getClientIp(req);
+    const limit = rateLimit(`upload:${ip}`, { windowMs: 60_000, max: 30 });
+    if (!limit.success) {
+      res.status(429).json({ error: "Upload quá nhanh. Vui lòng chờ một chút rồi thử lại." });
+      return;
+    }
+
     const payload = requireAuth(req, "STUDIO");
     const file = req.file;
     const albumId = req.body.albumId;
