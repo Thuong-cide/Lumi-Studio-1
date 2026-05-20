@@ -42,7 +42,7 @@ app.use("/api", router);
 const staticDir = process.env.STATIC_DIR ?? join(process.cwd(), "public");
 if (process.env.NODE_ENV === "production" && existsSync(staticDir)) {
   app.use(express.static(staticDir));
-  app.get("*", (_req, res) => {
+  app.get("/{*path}", (_req, res) => {
     res.sendFile(join(staticDir, "index.html"));
   });
   logger.info({ staticDir }, "Serving static frontend");

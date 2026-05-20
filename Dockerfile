@@ -21,7 +21,8 @@ WORKDIR /app
 
 COPY --from=builder /app/artifacts/api-server/dist ./dist
 COPY --from=builder /app/artifacts/lumiere/dist/public ./public
-COPY --from=builder /app/scripts ./scripts
+RUN mkdir -p scripts
+COPY --from=builder /app/scripts/make-admin.sh ./scripts/make-admin.sh
 
 ENV NODE_ENV=production
 ENV PORT=9200

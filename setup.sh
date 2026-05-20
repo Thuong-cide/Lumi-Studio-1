@@ -247,7 +247,7 @@ docker compose exec \
   -e ADMIN_EMAIL="$ADMIN_EMAIL" \
   -e ADMIN_PASSWORD="$ADMIN_PASSWORD" \
   -e DATABASE_URL="$DATABASE_URL" \
-  lumiere node /app/scripts/create-admin.mjs && \
+  lumiere node /app/dist/create-admin.mjs && \
   success "Tài khoản Admin: $ADMIN_EMAIL" || \
   warn "Chưa tạo được admin — thử lại sau: bash scripts/make-admin.sh"
 

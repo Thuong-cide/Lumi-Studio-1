@@ -15,7 +15,7 @@ docker compose exec \
   -e ADMIN_EMAIL="$ADMIN_EMAIL" \
   -e ADMIN_PASSWORD="$ADMIN_PASSWORD" \
   -e DATABASE_URL="$DATABASE_URL" \
-  lumiere node /app/scripts/create-admin.mjs
+  lumiere node /app/dist/create-admin.mjs
 
 echo ""
 echo "Xong! Đăng nhập tại http://localhost:9200/login"
