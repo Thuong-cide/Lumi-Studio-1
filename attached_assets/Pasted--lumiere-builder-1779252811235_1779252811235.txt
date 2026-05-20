@@ -1,0 +1,48 @@
+------                                                                          
+ > [lumiere builder 6/7] RUN PORT=9200 pnpm --filter @workspace/lumiere build:  
+5.453                                                                           
+5.453 > @workspace/lumiere@0.0.0 build /app/artifacts/lumiere                   
+5.453 > vite build --config vite.config.ts                                      
+5.453                                                                           
+5.969 /app/node_modules/.pnpm/rollup@4.60.3/node_modules/rollup/dist/native.js:115
+5.969 		throw new Error(
+5.969 		      ^
+5.969 
+5.969 Error: Cannot find module @rollup/rollup-linux-x64-musl. npm has a bug related to optional dependencies (https://github.com/npm/cli/issues/4828). Please try `npm i` again after removing both package-lock.json and node_modules directory.
+5.969     at requireWithFriendlyError (/app/node_modules/.pnpm/rollup@4.60.3/node_modules/rollup/dist/native.js:115:9)
+5.969     at Object.<anonymous> (/app/node_modules/.pnpm/rollup@4.60.3/node_modules/rollup/dist/native.js:124:76)
+5.969     at Module._compile (node:internal/modules/cjs/loader:1781:14)
+5.969     at Object..js (node:internal/modules/cjs/loader:1913:10)
+5.969     at Module.load (node:internal/modules/cjs/loader:1505:32)
+5.969     at Function._load (node:internal/modules/cjs/loader:1309:12)
+5.969     at wrapModuleLoad (node:internal/modules/cjs/loader:254:19)
+5.969     at loadCJSModuleWithModuleLoad (node:internal/modules/esm/translators:335:3)
+5.969     at ModuleWrap.<anonymous> (node:internal/modules/esm/translators:235:7)
+5.969     at ModuleJob.run (node:internal/modules/esm/module_job:343:25) {
+5.969   [cause]: Error: Cannot find module '@rollup/rollup-linux-x64-musl'
+5.969   Require stack:
+5.969   - /app/node_modules/.pnpm/rollup@4.60.3/node_modules/rollup/dist/native.js
+5.969       at Function._resolveFilename (node:internal/modules/cjs/loader:1430:15)
+5.969       at defaultResolveImpl (node:internal/modules/cjs/loader:1040:19)
+5.969       at resolveForCJSWithHooks (node:internal/modules/cjs/loader:1045:22)
+5.969       at Function._load (node:internal/modules/cjs/loader:1216:25)
+5.969       at wrapModuleLoad (node:internal/modules/cjs/loader:254:19)
+5.969       at Module.require (node:internal/modules/cjs/loader:1527:12)
+5.969       at require (node:internal/modules/helpers:147:16)
+5.969       at requireWithFriendlyError (/app/node_modules/.pnpm/rollup@4.60.3/node_modules/rollup/dist/native.js:97:10)
+5.969       at Object.<anonymous> (/app/node_modules/.pnpm/rollup@4.60.3/node_modules/rollup/dist/native.js:124:76)
+5.969       at Module._compile (node:internal/modules/cjs/loader:1781:14) {
+5.969     code: 'MODULE_NOT_FOUND',
+5.969     requireStack: [
+5.969       '/app/node_modules/.pnpm/rollup@4.60.3/node_modules/rollup/dist/native.js'
+5.969     ]
+5.969   }
+5.969 }
+5.969 
+5.969 Node.js v22.22.3
+6.007 /app/artifacts/lumiere:
+6.007  ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL  @workspace/lumiere@0.0.0 build: `vite build --config vite.config.ts`
+6.007 Exit status 1
+------
+failed to solve: process "/bin/sh -c PORT=9200 pnpm --filter @workspace/lumiere build" did not complete successfully: exit code: 1
+root@minwedding:/volume1/docker/lumiere# 
