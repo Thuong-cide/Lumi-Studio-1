@@ -61,7 +61,7 @@ router.post("/auth/login", async (req, res): Promise<void> => {
 
 router.post("/auth/register", async (req, res): Promise<void> => {
   try {
-    const { name, email, password } = req.body;
+    const { name, email, password, phone } = req.body;
     if (!name?.trim() || !email?.trim() || !password) {
       res.status(400).json({ error: "Vui lòng điền đầy đủ thông tin" });
       return;
@@ -78,6 +78,7 @@ router.post("/auth/register", async (req, res): Promise<void> => {
     await db.insert(studiosTable).values({
       name: name.trim(),
       email: email.toLowerCase().trim(),
+      phone: phone?.trim() || null,
       passwordHash: await hashPassword(password),
       status: "PENDING",
     });

@@ -18,6 +18,7 @@ import { useToast } from "@/hooks/use-toast";
 const formSchema = z.object({
   name: z.string().min(2, "Tên Studio phải có ít nhất 2 ký tự"),
   email: z.string().email("Email không hợp lệ"),
+  phone: z.string().min(9, "Số điện thoại không hợp lệ").max(15, "Số điện thoại không hợp lệ"),
   password: z.string().min(6, "Mật khẩu phải có ít nhất 6 ký tự"),
 });
 
@@ -31,6 +32,7 @@ export default function Register() {
     defaultValues: {
       name: "",
       email: "",
+      phone: "",
       password: "",
     },
   });
@@ -89,6 +91,19 @@ export default function Register() {
                     <FormLabel>Email</FormLabel>
                     <FormControl>
                       <Input placeholder="studio@example.com" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="phone"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Số điện thoại</FormLabel>
+                    <FormControl>
+                      <Input placeholder="0901 234 567" type="tel" {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>

@@ -114,6 +114,12 @@ export default function AdminStudios() {
                       </div>
                       <div className="mt-1 text-sm text-muted-foreground space-x-4">
                         <span>{studio.email}</span>
+                        {studio.phone && (
+                          <>
+                            <span>•</span>
+                            <span>{studio.phone}</span>
+                          </>
+                        )}
                         <span>•</span>
                         <span>Tham gia: {format(new Date(studio.createdAt), "dd/MM/yyyy")}</span>
                         <span>•</span>

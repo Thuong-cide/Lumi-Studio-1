@@ -12,6 +12,7 @@ export const studiosTable = pgTable("studios", {
   id: uuid("id").primaryKey().defaultRandom(),
   name: text("name").notNull(),
   email: text("email").notNull().unique(),
+  phone: text("phone"),
   passwordHash: text("password_hash").notNull(),
   status: text("status", { enum: ["PENDING", "APPROVED", "DISABLED"] }).notNull().default("PENDING"),
   googleDriveRefreshToken: text("google_drive_refresh_token"),

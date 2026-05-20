@@ -33,6 +33,7 @@ router.get("/admin/studios", async (req, res): Promise<void> => {
       id: studiosTable.id,
       name: studiosTable.name,
       email: studiosTable.email,
+      phone: studiosTable.phone,
       status: studiosTable.status,
       createdAt: studiosTable.createdAt,
       updatedAt: studiosTable.updatedAt,
