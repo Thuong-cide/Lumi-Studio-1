@@ -11,7 +11,7 @@ RUN pnpm install
 ENV BASE_PATH=/
 ENV NODE_ENV=production
 
-RUN PORT=9001 pnpm --filter @workspace/lumiere build
+RUN PORT=9200 pnpm --filter @workspace/lumiere build
 
 RUN pnpm --filter @workspace/api-server build
 
@@ -26,9 +26,9 @@ COPY --from=builder /app/artifacts/lumiere/dist/public ./public
 COPY --from=builder /app/scripts ./scripts
 
 ENV NODE_ENV=production
-ENV PORT=9001
+ENV PORT=9200
 ENV STATIC_DIR=/app/public
 
-EXPOSE 9001
+EXPOSE 9200
 
 CMD ["node", "--enable-source-maps", "./dist/index.mjs"]

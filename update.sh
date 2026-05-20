@@ -17,6 +17,6 @@ docker compose build --progress=plain 2>&1 | grep -E "(Step|---|\[|Successfully|
 info "Khởi động lại container..."
 docker compose up -d
 
-success "Cập nhật hoàn tất! App đang chạy tại cổng 9001."
+success "Cập nhật hoàn tất! App đang chạy tại cổng 9200."
 echo ""
 echo "Xem log: docker compose logs -f"

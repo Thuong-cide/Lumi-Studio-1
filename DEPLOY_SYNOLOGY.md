@@ -1,6 +1,6 @@
 # Hướng dẫn cài đặt Lumière trên Synology NAS
 
-App chạy toàn bộ ở **port 9001**, dùng PostgreSQL đã có sẵn trên NAS.
+App chạy toàn bộ ở **port 9200**, dùng PostgreSQL đã có sẵn trên NAS.
 
 ---
 
@@ -63,7 +63,7 @@ DATABASE_URL=postgresql://lumiere_user:mat_khau_cua_ban@host.docker.internal:543
 JWT_SECRET=nhap-chuoi-bi-mat-bat-ky-dai-it-nhat-32-ky-tu
 GOOGLE_CLIENT_ID=xxxx.apps.googleusercontent.com
 GOOGLE_CLIENT_SECRET=GOCSPX-xxxx
-GOOGLE_REDIRECT_URI=http://192.168.1.xxx:9001/api/auth/google/callback
+GOOGLE_REDIRECT_URI=http://192.168.1.xxx:9200/api/auth/google/callback
 ```
 
 > `host.docker.internal` là địa chỉ đặc biệt để container kết nối ra NAS host.
@@ -136,9 +136,9 @@ VALUES (
 
 | Trang | URL |
 |-------|-----|
-| App chính | `http://NAS_IP:9001` |
-| Trang login | `http://NAS_IP:9001/login` |
-| API health | `http://NAS_IP:9001/api/health` |
+| App chính | `http://NAS_IP:9200` |
+| Trang login | `http://NAS_IP:9200/login` |
+| API health | `http://NAS_IP:9200/api/health` |
 
 ---
 
@@ -174,9 +174,9 @@ docker compose exec lumiere sh
 ## Mở port qua router (nếu muốn truy cập từ Internet)
 
 Vào router → Port Forwarding → thêm rule:
-- External port: `9001`  
+- External port: `9200`  
 - Internal IP: IP của NAS
-- Internal port: `9001`
+- Internal port: `9200`
 
 ---
 
@@ -184,7 +184,7 @@ Vào router → Port Forwarding → thêm rule:
 
 Khi đăng ký Google OAuth, thêm Authorized Redirect URI:
 ```
-http://NAS_IP:9001/api/auth/google/callback
+http://NAS_IP:9200/api/auth/google/callback
 ```
 Hoặc nếu có domain:
 ```

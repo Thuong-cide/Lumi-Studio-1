@@ -18,4 +18,4 @@ docker compose exec \
   lumiere node /app/scripts/create-admin.mjs
 
 echo ""
-echo "Xong! Đăng nhập tại http://localhost:9001/login"
+echo "Xong! Đăng nhập tại http://localhost:9200/login"

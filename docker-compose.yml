@@ -28,10 +28,10 @@ services:
     container_name: lumiere-studio
     restart: unless-stopped
     ports:
-      - "9001:9001"
+      - "9200:9200"
     environment:
       NODE_ENV:            production
-      PORT:                "9001"
+      PORT:                "9200"
       STATIC_DIR:          /app/public
       DATABASE_URL:        ${DATABASE_URL}
       JWT_SECRET:          ${JWT_SECRET}
