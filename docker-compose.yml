@@ -1,6 +1,27 @@
 version: "3.9"
 
 services:
+  # ─── PostgreSQL riêng (dùng khi không có PostgreSQL sẵn hoặc không biết mật khẩu) ─
+  postgres:
+    image: postgres:16-alpine
+    container_name: lumiere-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB:       ${PG_DBNAME:-lumiere_db}
+      POSTGRES_USER:     ${PG_USER:-lumiere_user}
+      POSTGRES_PASSWORD: ${PG_PASS}
+    volumes:
+      - lumiere_pgdata:/var/lib/postgresql/data
+      - ./scripts/init-db.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${PG_USER:-lumiere_user} -d ${PG_DBNAME:-lumiere_db}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    profiles:
+      - with-postgres   # chỉ chạy khi dùng chế độ "kèm PostgreSQL"
+
+  # ─── App Lumière ──────────────────────────────────────────────────────────────
   lumiere:
     build: .
     image: lumiere-studio:latest
@@ -9,13 +30,21 @@ services:
     ports:
       - "9001:9001"
     environment:
-      NODE_ENV: production
-      PORT: "9001"
-      STATIC_DIR: /app/public
-      DATABASE_URL: ${DATABASE_URL}
-      JWT_SECRET: ${JWT_SECRET}
-      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID}
-      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET}
-      GOOGLE_REDIRECT_URI: ${GOOGLE_REDIRECT_URI}
+      NODE_ENV:            production
+      PORT:                "9001"
+      STATIC_DIR:          /app/public
+      DATABASE_URL:        ${DATABASE_URL}
+      JWT_SECRET:          ${JWT_SECRET}
+      GOOGLE_CLIENT_ID:    ${GOOGLE_CLIENT_ID:-}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+      GOOGLE_REDIRECT_URI: ${GOOGLE_REDIRECT_URI:-}
     extra_hosts:
       - "host.docker.internal:host-gateway"
+    depends_on:
+      postgres:
+        condition: service_healthy
+        required: false   # không bắt buộc nếu postgres không chạy
+
+volumes:
+  lumiere_pgdata:
+    name: lumiere_pgdata
