@@ -19,6 +19,7 @@ export default function PublicGallery() {
   const [fullscreenIndex, setFullscreenIndex] = useState<number | null>(null);
   const [noteOpenFor, setNoteOpenFor] = useState<string | null>(null);
   const [noteText, setNoteText] = useState("");
+  const [showOnlySelected, setShowOnlySelected] = useState(false);
 
   // --- Zoom state ---
   const [scale, setScale] = useState(1);
@@ -85,6 +86,9 @@ export default function PublicGallery() {
 
   const selectedCount = Object.values(localSelections).filter(v => v.selected).length;
   const maxSelection = album?.maxSelection || 0;
+  const displayedPhotos = showOnlySelected
+    ? photos.filter(p => localSelections[p.id]?.selected)
+    : photos;
 
 
   // ── Zoom helpers ──
@@ -119,7 +123,7 @@ export default function PublicGallery() {
 
   function goNext() {
     resetZoom();
-    setFullscreenIndex(i => (i !== null ? Math.min(photos.length - 1, i + 1) : null));
+    setFullscreenIndex(i => (i !== null ? Math.min(displayedPhotos.length - 1, i + 1) : null));
   }
 
   // ── Touch handlers ──
@@ -356,7 +360,7 @@ export default function PublicGallery() {
       <div className="sticky top-0 z-40 bg-background/80 backdrop-blur-md border-b border-border shadow-sm">
         <div className="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
           <div className="font-serif font-bold text-xl line-clamp-1">{album.title}</div>
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2 sm:gap-4">
             <button
               onClick={handleChangeName}
               className="text-sm font-medium hidden sm:block hover:text-primary transition-colors"
@@ -364,8 +368,20 @@ export default function PublicGallery() {
             >
               Xin chào, <span className="underline underline-offset-2 decoration-dotted">{customerName}</span>
             </button>
+            <button
+              onClick={() => setShowOnlySelected(v => !v)}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium transition-all shadow-sm border ${
+                showOnlySelected
+                  ? "bg-primary text-primary-foreground border-primary"
+                  : "bg-background text-foreground border-border hover:border-primary hover:text-primary"
+              }`}
+            >
+              <Heart className={`h-3.5 w-3.5 ${showOnlySelected ? "fill-current" : ""}`} />
+              <span className="hidden sm:inline">{showOnlySelected ? "Tất cả ảnh" : "Ảnh đã chọn"}</span>
+              <span className="sm:hidden">{selectedCount}</span>
+            </button>
             <div className="bg-primary text-primary-foreground px-4 py-1.5 rounded-full text-sm font-medium shadow-sm">
-              Đã chọn: {selectedCount}{maxSelection > 0 ? ` / ${maxSelection}` : ""}
+              {selectedCount}{maxSelection > 0 ? ` / ${maxSelection}` : ""}
             </div>
           </div>
         </div>
@@ -373,8 +389,20 @@ export default function PublicGallery() {
 
       {/* Grid */}
       <div className="max-w-7xl mx-auto px-4 py-8">
+        {showOnlySelected && displayedPhotos.length === 0 && (
+          <div className="flex flex-col items-center justify-center py-24 text-center gap-4">
+            <Heart className="h-12 w-12 text-muted-foreground/30" />
+            <p className="text-muted-foreground text-lg font-medium">Bạn chưa chọn ảnh nào</p>
+            <button
+              onClick={() => setShowOnlySelected(false)}
+              className="text-primary text-sm hover:underline"
+            >
+              Quay lại xem tất cả ảnh
+            </button>
+          </div>
+        )}
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2 md:gap-4">
-          {photos.map((photo, index) => {
+          {displayedPhotos.map((photo, index) => {
             const isSelected = localSelections[photo.id]?.selected;
             const note = localSelections[photo.id]?.note;
 
@@ -391,7 +419,7 @@ export default function PublicGallery() {
                   className="w-full h-full object-cover cursor-pointer"
                   loading={index === 0 ? "eager" : "lazy"}
                   decoding={index === 0 ? "sync" : "async"}
-                  onClick={() => { setFullscreenIndex(index); resetZoom(); }}
+                  onClick={() => { setFullscreenIndex(index); resetZoom(); setShowOnlySelected(false); }}
                 />
 
                 <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-black/20 opacity-0 group-hover:opacity-100 sm:opacity-100 sm:bg-none transition-opacity pointer-events-none" />
@@ -476,7 +504,7 @@ export default function PublicGallery() {
             {/* HEADER */}
             <div className="flex items-center justify-between px-4 py-3 bg-black/60 shrink-0 z-10">
               <span className="text-white/70 text-sm font-medium">
-                {fullscreenIndex + 1} / {photos.length}
+                {fullscreenIndex + 1} / {displayedPhotos.length}
               </span>
 
               {scale <= 1.05 && (
@@ -511,8 +539,8 @@ export default function PublicGallery() {
               style={{ touchAction: 'none' }}
             >
               <img
-                src={`/api/drive/proxy/${photos[fullscreenIndex].driveFileId}`}
-                alt={photos[fullscreenIndex].filename}
+                src={`/api/drive/proxy/${displayedPhotos[fullscreenIndex].driveFileId}`}
+                alt={displayedPhotos[fullscreenIndex].filename}
                 className="max-h-full max-w-full object-contain pointer-events-none"
                 draggable={false}
                 style={{
@@ -538,7 +566,7 @@ export default function PublicGallery() {
                   </button>
                   <button
                     onClick={goNext}
-                    disabled={fullscreenIndex === photos.length - 1}
+                    disabled={fullscreenIndex === displayedPhotos.length - 1}
                     className="absolute right-2 top-1/2 -translate-y-1/2 w-11 h-11 flex items-center justify-center rounded-full bg-black/40 text-white disabled:opacity-20 active:bg-black/60 transition-colors z-10"
                   >
                     <ChevronRight size={24} />
@@ -550,27 +578,27 @@ export default function PublicGallery() {
             {/* FOOTER: nút chọn + ghi chú */}
             <div className="shrink-0 px-4 py-4 bg-black/60 flex items-center justify-between gap-3 z-10">
               <button
-                className={`flex items-center gap-2 px-6 py-3 rounded-full text-base font-medium transition-all transform hover:scale-105 ${localSelections[photos[fullscreenIndex].id]?.selected
+                className={`flex items-center gap-2 px-6 py-3 rounded-full text-base font-medium transition-all transform hover:scale-105 ${localSelections[displayedPhotos[fullscreenIndex].id]?.selected
                   ? 'bg-white text-black'
                   : 'bg-white/10 text-white hover:bg-white/20'
                   }`}
-                onClick={() => handleToggleSelect(photos[fullscreenIndex].id)}
+                onClick={() => handleToggleSelect(displayedPhotos[fullscreenIndex].id)}
               >
-                <Heart className={`h-5 w-5 ${localSelections[photos[fullscreenIndex].id]?.selected ? 'fill-current text-red-500' : ''}`} />
-                {localSelections[photos[fullscreenIndex].id]?.selected ? 'Đã chọn ảnh này' : 'Chọn ảnh này'}
+                <Heart className={`h-5 w-5 ${localSelections[displayedPhotos[fullscreenIndex].id]?.selected ? 'fill-current text-red-500' : ''}`} />
+                {localSelections[displayedPhotos[fullscreenIndex].id]?.selected ? 'Đã chọn ảnh này' : 'Chọn ảnh này'}
               </button>
 
               {album.allowNotes && (
                 <button
                   className="flex items-center gap-2 px-4 py-3 rounded-full text-sm text-white/70 bg-white/10 hover:bg-white/20 transition-colors"
                   onClick={() => {
-                    const photo = photos[fullscreenIndex];
+                    const photo = displayedPhotos[fullscreenIndex];
                     setNoteText(localSelections[photo.id]?.note || "");
                     setNoteOpenFor(photo.id);
                   }}
                 >
                   <Check size={16} />
-                  {localSelections[photos[fullscreenIndex].id]?.note ? 'Sửa ghi chú' : 'Thêm ghi chú'}
+                  {localSelections[displayedPhotos[fullscreenIndex].id]?.note ? 'Sửa ghi chú' : 'Thêm ghi chú'}
                 </button>
               )}
             </div>
