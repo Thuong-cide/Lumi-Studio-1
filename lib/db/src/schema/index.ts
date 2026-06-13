@@ -42,6 +42,7 @@ export const albumsTable = pgTable("albums", {
   webhookSentAt: timestamp("webhook_sent_at"),
   webhookLastStatus: text("webhook_last_status"),
   deliverableRootFolderUrl: text("deliverable_root_folder_url"),
+  deliverableRootFolderId: text("deliverable_root_folder_id"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow().$onUpdate(() => new Date()),
 }, (table) => [
@@ -114,7 +115,7 @@ export const deliverablesTable = pgTable("deliverables", {
 export const deliverablePhotosTable = pgTable("deliverable_photos", {
   id: uuid("id").primaryKey().defaultRandom(),
   deliverableId: uuid("deliverable_id").notNull().references(() => deliverablesTable.id, { onDelete: "cascade" }),
-  originalPhotoId: uuid("original_photo_id").notNull().references(() => photosTable.id, { onDelete: "cascade" }),
+  originalPhotoId: uuid("original_photo_id").references(() => photosTable.id, { onDelete: "set null" }),
   editedImageUrl: text("edited_image_url").notNull(),
   caption: text("caption"),
 }, (table) => [

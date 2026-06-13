@@ -359,7 +359,6 @@ export default function AlbumDetail() {
       <AlbumDeliverablesSection
         albumId={albumId}
         deliverableRootFolderUrl={album?.deliverableRootFolderUrl}
-        photos={photos}
       />
     </div>
   );

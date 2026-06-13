@@ -532,7 +532,7 @@ export const ListDeliverablesResponse = zod.object({
   "photos": zod.array(zod.object({
   "id": zod.string(),
   "deliverableId": zod.string(),
-  "originalPhotoId": zod.string(),
+  "originalPhotoId": zod.string().nullish(),
   "editedImageUrl": zod.string(),
   "caption": zod.string().nullish(),
   "originalPhoto": zod.object({
@@ -591,7 +591,7 @@ export const GetPublicDeliverablesResponse = zod.object({
   "photos": zod.array(zod.object({
   "id": zod.string(),
   "deliverableId": zod.string(),
-  "originalPhotoId": zod.string(),
+  "originalPhotoId": zod.string().nullish(),
   "editedImageUrl": zod.string(),
   "caption": zod.string().nullish(),
   "originalPhoto": zod.object({

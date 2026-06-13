@@ -10,7 +10,8 @@ import type { Photo } from './photo';
 export interface DeliverablePhoto {
   id: string;
   deliverableId: string;
-  originalPhotoId: string;
+  /** @nullable */
+  originalPhotoId?: string | null;
   editedImageUrl: string;
   /** @nullable */
   caption?: string | null;

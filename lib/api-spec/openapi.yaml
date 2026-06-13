@@ -1125,14 +1125,14 @@ components:
 
     DeliverablePhoto:
       type: object
-      required: [id, deliverableId, originalPhotoId, editedImageUrl]
+      required: [id, deliverableId, editedImageUrl]
       properties:
         id:
           type: string
         deliverableId:
           type: string
         originalPhotoId:
-          type: string
+          type: ["string", "null"]
         editedImageUrl:
           type: string
         caption:

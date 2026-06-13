@@ -1,16 +1,28 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
-import { albumsTable, photosTable, deliverablesTable, deliverablePhotosTable } from "@workspace/db";
+import { albumsTable, photosTable, studiosTable, deliverablesTable, deliverablePhotosTable } from "@workspace/db";
 import { eq, inArray } from "drizzle-orm";
 import { requireAuth, getErrorStatus } from "../lib/auth";
+import { createFolder, uploadFileToDrive } from "../lib/google-drive";
 import { logger } from "../lib/logger";
+import multer from "multer";
+
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 50 * 1024 * 1024 } });
+
+function normalizeFilename(name: string): string {
+  const base = name.replace(/\.[^.]+$/, "");
+  return base
+    .replace(/[-_\s]+(edited|final|chinhsua|retouched|edit|chinh|sua|done|output|export|retouch)$/i, "")
+    .toLowerCase()
+    .trim();
+}
 
 const router = Router();
 
 interface DeliverablePhotoRow {
   id: string;
   deliverableId: string;
-  originalPhotoId: string;
+  originalPhotoId: string | null;
   editedImageUrl: string;
   caption: string | null;
   originalPhoto?: {
@@ -215,6 +227,142 @@ router.get("/public/album/:slug/deliverables", async (req, res): Promise<void> =
   } catch (e) {
     logger.error(e, "[PUBLIC DELIVERABLES]");
     res.status(500).json({ error: "Lỗi server" });
+  }
+});
+
+// Upload edited photos directly — auto-creates Drive folders and matches by filename
+router.post("/studios/albums/:id/deliverables/upload", upload.array("files", 100), async (req, res): Promise<void> => {
+  try {
+    const payload = requireAuth(req, "STUDIO");
+    const albumId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+
+    const [album] = await db.select().from(albumsTable).where(eq(albumsTable.id, albumId));
+    if (!album || album.studioId !== payload.id) {
+      res.status(404).json({ error: "Album không tìm thấy" });
+      return;
+    }
+    if (!album.driveFolderId) {
+      res.status(400).json({ error: "Album chưa có thư mục Drive. Vui lòng tạo lại album." });
+      return;
+    }
+
+    const [studio] = await db
+      .select({ googleDriveRefreshToken: studiosTable.googleDriveRefreshToken })
+      .from(studiosTable)
+      .where(eq(studiosTable.id, payload.id));
+    if (!studio?.googleDriveRefreshToken) {
+      res.status(400).json({ error: "Vui lòng kết nối Google Drive trước khi tải lên ảnh" });
+      return;
+    }
+
+    const files = req.files as Express.Multer.File[];
+    if (!files || files.length === 0) {
+      res.status(400).json({ error: "Không có file nào được gửi lên" });
+      return;
+    }
+    const imageFiles = files.filter(f => f.mimetype.startsWith("image/"));
+    if (imageFiles.length === 0) {
+      res.status(400).json({ error: "Chỉ chấp nhận file ảnh" });
+      return;
+    }
+
+    const note = typeof req.body.note === "string" ? req.body.note.trim() || null : null;
+    const refreshToken = studio.googleDriveRefreshToken;
+
+    // 1. Get or create "Ảnh chỉnh sửa" root folder
+    let rootFolderId = album.deliverableRootFolderId;
+    if (!rootFolderId) {
+      rootFolderId = await createFolder(refreshToken, "Ảnh chỉnh sửa", album.driveFolderId);
+      await db.update(albumsTable).set({
+        deliverableRootFolderId: rootFolderId,
+        deliverableRootFolderUrl: `https://drive.google.com/drive/folders/${rootFolderId}`,
+      }).where(eq(albumsTable.id, albumId));
+    }
+
+    // 2. Determine next version number
+    const existingVersions = await db
+      .select({ version: deliverablesTable.version })
+      .from(deliverablesTable)
+      .where(eq(deliverablesTable.albumId, albumId));
+    const nextVersion = existingVersions.length + 1;
+
+    // 3. Create version folder inside root
+    const versionFolderId = await createFolder(refreshToken, `v${nextVersion}`, rootFolderId);
+
+    // 4. Get original photos for filename matching
+    const originalPhotos = await db
+      .select({ id: photosTable.id, filename: photosTable.filename })
+      .from(photosTable)
+      .where(eq(photosTable.albumId, albumId));
+    const photoMap = new Map(originalPhotos.map(p => [normalizeFilename(p.filename), p.id]));
+
+    // 5. Upload all files to Drive in parallel
+    const uploadResults = await Promise.allSettled(
+      imageFiles.map(async (file) => {
+        const { fileId } = await uploadFileToDrive(
+          refreshToken,
+          versionFolderId,
+          file.originalname,
+          file.mimetype,
+          file.buffer
+        );
+        return { fileId, filename: file.originalname };
+      })
+    );
+
+    // 6. Build photo records with filename matching
+    type PhotoInsert = { deliverableId: string; originalPhotoId: string | null; editedImageUrl: string; caption: null };
+    const photoValues: Omit<PhotoInsert, "deliverableId">[] = [];
+    let matchedCount = 0;
+    let unmatchedCount = 0;
+
+    for (const result of uploadResults) {
+      if (result.status !== "fulfilled") {
+        logger.warn(result.reason, "[UPLOAD DELIVERABLE] File upload failed");
+        continue;
+      }
+      const { fileId, filename } = result.value;
+      const originalPhotoId = photoMap.get(normalizeFilename(filename)) ?? null;
+      if (originalPhotoId) matchedCount++;
+      else unmatchedCount++;
+      photoValues.push({ originalPhotoId, editedImageUrl: fileId, caption: null });
+    }
+
+    if (photoValues.length === 0) {
+      res.status(500).json({ error: "Không có file nào tải lên thành công" });
+      return;
+    }
+
+    // 7. Create deliverable record
+    const [deliverable] = await db.insert(deliverablesTable).values({
+      albumId,
+      version: nextVersion,
+      versionLabel: `v${nextVersion}`,
+      driveFolderUrl: `https://drive.google.com/drive/folders/${versionFolderId}`,
+      note,
+    }).returning();
+
+    // 8. Insert deliverable photos
+    const insertedPhotos = await db.insert(deliverablePhotosTable).values(
+      photoValues.map(p => ({ ...p, deliverableId: deliverable.id }))
+    ).returning();
+
+    logger.info({ albumId, version: nextVersion, matchedCount, unmatchedCount }, "[UPLOAD DELIVERABLE]");
+
+    res.status(201).json({
+      deliverable: {
+        ...deliverable,
+        createdAt: deliverable.createdAt.toISOString(),
+        updatedAt: deliverable.updatedAt.toISOString(),
+        photos: insertedPhotos,
+        matchedCount,
+        unmatchedCount,
+      },
+    });
+  } catch (e: unknown) {
+    logger.error(e, "[UPLOAD DELIVERABLE]");
+    const msg = e instanceof Error ? e.message : "Lỗi server";
+    res.status(500).json({ error: msg });
   }
 });
 
