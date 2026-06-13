@@ -745,6 +745,7 @@ export default function PublicGallery() {
                         beforeSrc={origSrc}
                         afterSrc={editSrc}
                         caption={photo.caption ?? undefined}
+                        onExpand={() => { setEditedFullscreenIndex(index); resetEditedZoom(); }}
                       />
                     );
                   }
@@ -875,70 +876,116 @@ export default function PublicGallery() {
 
       {/* ── FULLSCREEN OVERLAY (edited photos) ── */}
       <AnimatePresence>
-        {editedFullscreenIndex !== null && editedPhotos[editedFullscreenIndex] && (
-          <motion.div
-            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 bg-black flex flex-col select-none"
-          >
-            <div className="flex items-center justify-between px-4 py-3 bg-black/60 shrink-0 z-10">
-              <span className="text-white/70 text-sm font-medium">{editedFullscreenIndex + 1} / {editedPhotos.length}</span>
-              <div className="flex items-center gap-2">
-                <span className="text-xs text-white/40 bg-white/10 rounded-full px-2 py-0.5">
-                  {activeDeliverable?.versionLabel ?? ""}
-                </span>
-                {editedScale <= 1.05 ? (
-                  <span className="text-white/30 text-xs hidden md:block">Chụm 2 ngón để zoom</span>
-                ) : (
-                  <button onClick={resetEditedZoom} className="text-xs text-white/80 border border-white/30 rounded-full px-3 py-1 hover:bg-white/10 transition-colors">
-                    Về 1×
-                  </button>
-                )}
-              </div>
-              <button onClick={() => { setEditedFullscreenIndex(null); resetEditedZoom(); }} className="w-11 h-11 flex items-center justify-center rounded-full bg-white/10 hover:bg-white/20 transition-colors">
-                <X size={20} className="text-white" />
-              </button>
-            </div>
+        {editedFullscreenIndex !== null && editedPhotos[editedFullscreenIndex] && (() => {
+          const fsPhoto = editedPhotos[editedFullscreenIndex];
+          const fsEditSrc = toDriveProxyUrl(fsPhoto.editedImageUrl);
+          const fsOrigSrc = fsPhoto.originalPhoto
+            ? `/api/drive/proxy/${fsPhoto.originalPhoto.driveFileId}`
+            : "";
+          const hasOriginal = !!fsOrigSrc;
 
-            <div
-              className="flex-1 relative flex items-center justify-center overflow-hidden"
-              onTouchStart={handleEditedTouchStart}
-              onTouchMove={handleEditedTouchMove}
-              onTouchEnd={handleEditedTouchEnd}
-              style={{ touchAction: 'none' }}
+          return (
+            <motion.div
+              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              className="fixed inset-0 z-50 bg-black flex flex-col select-none"
             >
-              <img
-                src={toDriveProxyUrl(editedPhotos[editedFullscreenIndex].editedImageUrl)}
-                alt={`Ảnh chỉnh sửa ${editedFullscreenIndex + 1}`}
-                className="max-h-full max-w-full object-contain pointer-events-none"
-                draggable={false}
-                style={{
-                  transform: `scale(${editedScale}) translate(${editedTranslateX / editedScale}px, ${editedTranslateY / editedScale}px)`,
-                  transformOrigin: 'center center',
-                  transition: (editedIsPanning.current || editedInitialPinch.current !== null) ? 'none' : 'transform 0.15s ease-out',
-                  willChange: 'transform',
-                  cursor: editedScale > 1.05 ? 'grab' : 'default',
-                }}
-              />
-              {editedScale <= 1.05 && (
-                <>
-                  <button onClick={goEditedPrev} disabled={editedFullscreenIndex === 0} className="absolute left-2 top-1/2 -translate-y-1/2 w-11 h-11 flex items-center justify-center rounded-full bg-black/40 text-white disabled:opacity-20 active:bg-black/60 transition-colors z-10">
-                    <ChevronLeft size={24} />
-                  </button>
-                  <button onClick={goEditedNext} disabled={editedFullscreenIndex === editedPhotos.length - 1} className="absolute right-2 top-1/2 -translate-y-1/2 w-11 h-11 flex items-center justify-center rounded-full bg-black/40 text-white disabled:opacity-20 active:bg-black/60 transition-colors z-10">
-                    <ChevronRight size={24} />
-                  </button>
-                </>
-              )}
-            </div>
-
-            {/* Footer: just caption if exists */}
-            {editedPhotos[editedFullscreenIndex].caption && (
-              <div className="shrink-0 px-6 py-4 bg-black/60 text-center z-10">
-                <p className="text-white/80 text-sm">{editedPhotos[editedFullscreenIndex].caption}</p>
+              {/* Header */}
+              <div className="flex items-center justify-between px-4 py-3 bg-black/60 shrink-0 z-10">
+                <span className="text-white/70 text-sm font-medium">{editedFullscreenIndex + 1} / {editedPhotos.length}</span>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-white/40 bg-white/10 rounded-full px-2 py-0.5">
+                    {activeDeliverable?.versionLabel ?? ""}
+                  </span>
+                  {!hasOriginal && editedScale > 1.05 && (
+                    <button onClick={resetEditedZoom} className="text-xs text-white/80 border border-white/30 rounded-full px-3 py-1 hover:bg-white/10 transition-colors">
+                      Về 1×
+                    </button>
+                  )}
+                  {!hasOriginal && editedScale <= 1.05 && (
+                    <span className="text-white/30 text-xs hidden md:block">Chụm 2 ngón để zoom</span>
+                  )}
+                  {hasOriginal && (
+                    <span className="text-white/40 text-xs hidden md:block">Kéo thanh để so sánh Trước / Sau</span>
+                  )}
+                </div>
+                <button onClick={() => { setEditedFullscreenIndex(null); resetEditedZoom(); }} className="w-11 h-11 flex items-center justify-center rounded-full bg-white/10 hover:bg-white/20 transition-colors">
+                  <X size={20} className="text-white" />
+                </button>
               </div>
-            )}
-          </motion.div>
-        )}
+
+              {/* Content */}
+              {hasOriginal ? (
+                /* Before/After Slider fullscreen */
+                <div className="flex-1 flex items-center justify-center p-4 md:p-8 overflow-hidden min-h-0">
+                  <div className="w-full h-full max-w-5xl">
+                    <BeforeAfterSlider
+                      beforeSrc={fsOrigSrc}
+                      afterSrc={fsEditSrc}
+                      fill={true}
+                      caption={fsPhoto.caption}
+                    />
+                  </div>
+                </div>
+              ) : (
+                /* Plain image with zoom/pan */
+                <div
+                  className="flex-1 relative flex items-center justify-center overflow-hidden"
+                  onTouchStart={handleEditedTouchStart}
+                  onTouchMove={handleEditedTouchMove}
+                  onTouchEnd={handleEditedTouchEnd}
+                  style={{ touchAction: 'none' }}
+                >
+                  <img
+                    src={fsEditSrc}
+                    alt={`Ảnh chỉnh sửa ${editedFullscreenIndex + 1}`}
+                    className="max-h-full max-w-full object-contain pointer-events-none"
+                    draggable={false}
+                    style={{
+                      transform: `scale(${editedScale}) translate(${editedTranslateX / editedScale}px, ${editedTranslateY / editedScale}px)`,
+                      transformOrigin: 'center center',
+                      transition: (editedIsPanning.current || editedInitialPinch.current !== null) ? 'none' : 'transform 0.15s ease-out',
+                      willChange: 'transform',
+                      cursor: editedScale > 1.05 ? 'grab' : 'default',
+                    }}
+                  />
+                  {fsPhoto.caption && (
+                    <div className="absolute bottom-16 left-0 right-0 text-center pointer-events-none">
+                      <span className="bg-black/60 text-white/80 text-sm px-4 py-1.5 rounded-full">
+                        {fsPhoto.caption}
+                      </span>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Nav footer — prev/next + optional caption for slider mode */}
+              <div className="shrink-0 flex items-center justify-between px-4 py-3 bg-black/60 z-10">
+                <button
+                  onClick={goEditedPrev}
+                  disabled={editedFullscreenIndex === 0}
+                  className="flex items-center gap-1.5 px-4 py-2 rounded-full bg-white/10 text-white disabled:opacity-20 hover:bg-white/20 active:bg-white/30 transition-colors text-sm"
+                >
+                  <ChevronLeft size={18} /> Trước
+                </button>
+
+                {hasOriginal && fsPhoto.caption && (
+                  <span className="text-white/60 text-xs text-center flex-1 mx-4 line-clamp-1">
+                    {fsPhoto.caption}
+                  </span>
+                )}
+                {!hasOriginal && <div className="flex-1" />}
+
+                <button
+                  onClick={goEditedNext}
+                  disabled={editedFullscreenIndex === editedPhotos.length - 1}
+                  className="flex items-center gap-1.5 px-4 py-2 rounded-full bg-white/10 text-white disabled:opacity-20 hover:bg-white/20 active:bg-white/30 transition-colors text-sm"
+                >
+                  Sau <ChevronRight size={18} />
+                </button>
+              </div>
+            </motion.div>
+          );
+        })()}
       </AnimatePresence>
 
       {/* Dialog xác nhận danh sách */}

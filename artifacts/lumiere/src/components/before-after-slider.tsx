@@ -1,4 +1,5 @@
 import { useState, useRef, useCallback } from "react";
+import { Maximize2 } from "lucide-react";
 
 interface BeforeAfterSliderProps {
   beforeSrc: string;
@@ -7,6 +8,8 @@ interface BeforeAfterSliderProps {
   afterLabel?: string;
   caption?: string | null;
   className?: string;
+  fill?: boolean;
+  onExpand?: () => void;
 }
 
 export function BeforeAfterSlider({
@@ -16,6 +19,8 @@ export function BeforeAfterSlider({
   afterLabel = "Sau",
   caption,
   className = "",
+  fill = false,
+  onExpand,
 }: BeforeAfterSliderProps) {
   const [position, setPosition] = useState(50);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -29,11 +34,11 @@ export function BeforeAfterSlider({
   }, []);
 
   return (
-    <div className={`space-y-1.5 ${className}`}>
+    <div className={`${fill ? "h-full" : "space-y-1.5"} ${className}`}>
       <div
         ref={containerRef}
-        className="relative w-full overflow-hidden rounded-lg bg-muted select-none cursor-col-resize"
-        style={{ aspectRatio: "1 / 1", touchAction: "none" }}
+        className="group relative w-full overflow-hidden rounded-lg bg-muted select-none cursor-col-resize"
+        style={{ ...(fill ? { height: "100%" } : { aspectRatio: "1 / 1" }), touchAction: "none" }}
         onMouseDown={(e) => { dragging.current = true; move(e.clientX); e.preventDefault(); }}
         onMouseMove={(e) => { if (dragging.current) move(e.clientX); }}
         onMouseUp={() => { dragging.current = false; }}
@@ -82,8 +87,21 @@ export function BeforeAfterSlider({
             <path d="M5 4L2 8L5 12M11 4L14 8L11 12" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
           </svg>
         </div>
+
+        {onExpand && (
+          <button
+            className="absolute bottom-2 right-2 z-30 bg-black/50 hover:bg-black/80 text-white rounded-md p-1.5 opacity-0 group-hover:opacity-100 transition-opacity"
+            onClick={(e) => { e.stopPropagation(); e.preventDefault(); onExpand(); }}
+            onMouseDown={(e) => e.stopPropagation()}
+            onTouchStart={(e) => { e.stopPropagation(); onExpand(); }}
+            title="Xem toàn màn hình"
+          >
+            <Maximize2 className="h-3.5 w-3.5" />
+          </button>
+        )}
       </div>
-      {caption && (
+
+      {caption && !fill && (
         <p className="text-xs text-muted-foreground text-center px-1 line-clamp-2">{caption}</p>
       )}
     </div>
