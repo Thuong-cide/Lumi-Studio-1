@@ -129,6 +129,7 @@ router.get("/auth/me", async (req, res): Promise<void> => {
       name: studiosTable.name,
       email: studiosTable.email,
       status: studiosTable.status,
+      expiresAt: studiosTable.expiresAt,
       googleDriveRefreshToken: studiosTable.googleDriveRefreshToken,
       rootFolderId: studiosTable.rootFolderId,
       defaultMaxSelection: studiosTable.defaultMaxSelection,
@@ -139,6 +140,19 @@ router.get("/auth/me", async (req, res): Promise<void> => {
       res.status(404).json({ error: "Không tìm thấy tài khoản" });
       return;
     }
+
+    if (studio.status === "DISABLED") {
+      res.clearCookie("lumiere_token", { path: "/" });
+      res.status(403).json({ error: "Tài khoản đã bị vô hiệu hóa. Vui lòng liên hệ Admin.", code: "DISABLED" });
+      return;
+    }
+
+    if (studio.expiresAt && studio.expiresAt < new Date()) {
+      res.clearCookie("lumiere_token", { path: "/" });
+      res.status(403).json({ error: "Tài khoản đã hết hạn sử dụng. Vui lòng liên hệ Admin để gia hạn.", code: "EXPIRED" });
+      return;
+    }
+
     res.json({
       user: { id: studio.id, email: studio.email, role: "STUDIO", status: studio.status },
       studio: {
