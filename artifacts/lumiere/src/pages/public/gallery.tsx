@@ -269,8 +269,11 @@ export default function PublicGallery() {
       isSwiping.current = false;
       const changedTouch = e.changedTouches[0];
       const diffX = swipeStartX.current - changedTouch.clientX;
-      const diffY = Math.abs(swipeStartY.current - changedTouch.clientY);
-      if (Math.abs(diffX) > 50 && diffY < 80) {
+      const diffY = changedTouch.clientY - swipeStartY.current;
+      if (diffY > 80 && Math.abs(diffX) < 80) {
+        setFullscreenIndex(null); resetZoom(); return;
+      }
+      if (Math.abs(diffX) > 50 && Math.abs(diffY) < 80) {
         if (diffX > 0) goNext(); else goPrev();
       }
     }
@@ -341,9 +344,13 @@ export default function PublicGallery() {
       editedLastTX.current = editedTranslateX; editedLastTY.current = editedTranslateY;
     } else if (editedIsSwiping.current && e.touches.length === 0) {
       editedIsSwiping.current = false;
-      const diffX = editedSwipeStartX.current - e.changedTouches[0].clientX;
-      const diffY = Math.abs(editedSwipeStartY.current - e.changedTouches[0].clientY);
-      if (Math.abs(diffX) > 50 && diffY < 80) {
+      const changedTouch = e.changedTouches[0];
+      const diffX = editedSwipeStartX.current - changedTouch.clientX;
+      const diffY = changedTouch.clientY - editedSwipeStartY.current;
+      if (diffY > 80 && Math.abs(diffX) < 80) {
+        setEditedFullscreenIndex(null); resetEditedZoom(); return;
+      }
+      if (Math.abs(diffX) > 50 && Math.abs(diffY) < 80) {
         if (diffX > 0) goEditedNext(); else goEditedPrev();
       }
     }

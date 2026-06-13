@@ -25,6 +25,9 @@ export function BeforeAfterSlider({
   const [position, setPosition] = useState(50);
   const containerRef = useRef<HTMLDivElement>(null);
   const dragging = useRef(false);
+  const lastTapTime = useRef(0);
+  const lastTapX = useRef(0);
+  const lastTapY = useRef(0);
 
   const move = useCallback((clientX: number) => {
     const el = containerRef.current;
@@ -39,11 +42,29 @@ export function BeforeAfterSlider({
         ref={containerRef}
         className="group relative w-full overflow-hidden rounded-lg bg-muted select-none cursor-col-resize"
         style={{ ...(fill ? { height: "100%" } : { aspectRatio: "1 / 1" }), touchAction: "none" }}
+        onDoubleClick={(e) => { e.preventDefault(); onExpand?.(); }}
         onMouseDown={(e) => { dragging.current = true; move(e.clientX); e.preventDefault(); }}
         onMouseMove={(e) => { if (dragging.current) move(e.clientX); }}
         onMouseUp={() => { dragging.current = false; }}
         onMouseLeave={() => { dragging.current = false; }}
-        onTouchStart={(e) => { dragging.current = true; move(e.touches[0].clientX); }}
+        onTouchStart={(e) => {
+          const touch = e.touches[0];
+          const now = Date.now();
+          const dt = now - lastTapTime.current;
+          const dx = Math.abs(touch.clientX - lastTapX.current);
+          const dy = Math.abs(touch.clientY - lastTapY.current);
+          if (dt < 300 && dx < 40 && dy < 40) {
+            e.preventDefault();
+            lastTapTime.current = 0;
+            onExpand?.();
+            return;
+          }
+          lastTapTime.current = now;
+          lastTapX.current = touch.clientX;
+          lastTapY.current = touch.clientY;
+          dragging.current = true;
+          move(touch.clientX);
+        }}
         onTouchMove={(e) => { if (!dragging.current) return; e.preventDefault(); move(e.touches[0].clientX); }}
         onTouchEnd={() => { dragging.current = false; }}
       >
