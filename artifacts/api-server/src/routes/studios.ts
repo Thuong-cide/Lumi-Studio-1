@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
 import { studiosTable, albumsTable, selectionsTable, photosTable, selectionConfirmationsTable } from "@workspace/db";
-import { eq, count, desc } from "drizzle-orm";
+import { eq, count, desc, inArray } from "drizzle-orm";
 import { requireAuth, hashPassword, getErrorStatus } from "../lib/auth";
 import { slugify } from "../lib/utils";
 import { createFolder } from "../lib/google-drive";
@@ -37,26 +37,44 @@ router.patch("/studios/settings", async (req, res): Promise<void> => {
   }
 });
 
+// FIX N+1: Thay vì loop N albums × 2 queries, dùng 2 batch COUNT queries
 router.get("/studios/albums", async (req, res): Promise<void> => {
   try {
     const payload = requireAuth(req, "STUDIO");
-    const albums = await db.select().from(albumsTable).where(eq(albumsTable.studioId, payload.id)).orderBy(albumsTable.createdAt);
+    const albums = await db.select().from(albumsTable)
+      .where(eq(albumsTable.studioId, payload.id))
+      .orderBy(albumsTable.createdAt);
 
-    const albumsWithCounts = await Promise.all(
-      albums.map(async (album) => {
-        const [photoCountResult] = await db.select({ count: count() }).from(photosTable).where(eq(photosTable.albumId, album.id));
-        const [selectionCountResult] = await db.select({ count: count() }).from(selectionsTable).where(eq(selectionsTable.albumId, album.id));
-        return {
-          ...album,
-          photoCount: Number(photoCountResult.count),
-          selectionCount: Number(selectionCountResult.count),
-          createdAt: album.createdAt.toISOString(),
-          updatedAt: album.updatedAt.toISOString(),
-        };
-      })
-    );
+    if (albums.length === 0) {
+      res.json({ albums: [] });
+      return;
+    }
 
-    res.json({ albums: albumsWithCounts });
+    const albumIds = albums.map(a => a.id);
+
+    const [photoCounts, selectionCounts] = await Promise.all([
+      db.select({ albumId: photosTable.albumId, cnt: count() })
+        .from(photosTable)
+        .where(inArray(photosTable.albumId, albumIds))
+        .groupBy(photosTable.albumId),
+      db.select({ albumId: selectionsTable.albumId, cnt: count() })
+        .from(selectionsTable)
+        .where(inArray(selectionsTable.albumId, albumIds))
+        .groupBy(selectionsTable.albumId),
+    ]);
+
+    const photoCountMap = Object.fromEntries(photoCounts.map(r => [r.albumId, Number(r.cnt)]));
+    const selectionCountMap = Object.fromEntries(selectionCounts.map(r => [r.albumId, Number(r.cnt)]));
+
+    res.json({
+      albums: albums.map(album => ({
+        ...album,
+        photoCount: photoCountMap[album.id] ?? 0,
+        selectionCount: selectionCountMap[album.id] ?? 0,
+        createdAt: album.createdAt.toISOString(),
+        updatedAt: album.updatedAt.toISOString(),
+      })),
+    });
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : "Server error";
     res.status(getErrorStatus(msg)).json({ error: msg });
@@ -115,8 +133,13 @@ router.get("/studios/albums/:id", async (req, res): Promise<void> => {
       res.status(404).json({ error: "Không tìm thấy album" });
       return;
     }
-    const photos = await db.select().from(photosTable).where(eq(photosTable.albumId, id)).orderBy(photosTable.order);
-    const [selectionCountResult] = await db.select({ count: count() }).from(selectionsTable).where(eq(selectionsTable.albumId, id));
+
+    // Run photos + selectionCount in parallel instead of sequential
+    const [photos, [selectionCountResult]] = await Promise.all([
+      db.select().from(photosTable).where(eq(photosTable.albumId, id)).orderBy(photosTable.order),
+      db.select({ count: count() }).from(selectionsTable).where(eq(selectionsTable.albumId, id)),
+    ]);
+
     res.json({
       album: {
         ...album,

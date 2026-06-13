@@ -1,0 +1,248 @@
+Mục tiêu
+
+Tối ưu Lumi Studio để chạy production trên máy Ubuntu i5-3340M RAM 8GB, xử lý ~200 concurrent requests. Thực hiện 4 việc theo thứ tự dưới đây, không thay đổi logic nghiệp vụ hiện có.
+
+
+Việc 1 — Thêm database index (ưu tiên cao nhất)
+
+Vị trí file: lib/db/src/schema/index.ts
+
+Thêm index vào 3 bảng sau. Dùng đúng cú pháp Drizzle ORM với callback thứ 3 của pgTable:
+
+typescript// lib/db/src/schema/index.ts
+import {
+  pgTable, uuid, varchar, boolean,
+  timestamp, integer, index
+} from 'drizzle-orm/pg-core';
+
+export const albums = pgTable('albums', {
+  id:          uuid('id').primaryKey().defaultRandom(),
+  studioId:    uuid('studio_id').notNull().references(() => studios.id),
+  slug:        varchar('slug', { length: 100 }).notNull(),
+  title:       varchar('title', { length: 255 }).notNull(),
+  isPublished: boolean('is_published').default(false),
+  createdAt:   timestamp('created_at').defaultNow(),
+}, (t) => ({
+  studioIdx:   index('albums_studio_id_idx').on(t.studioId),
+  slugIdx:     index('albums_slug_idx').on(t.slug),
+  publishedIdx: index('albums_published_idx').on(t.isPublished),
+}));
+
+export const photos = pgTable('photos', {
+  id:          uuid('id').primaryKey().defaultRandom(),
+  albumId:     uuid('album_id').notNull().references(() => albums.id),
+  driveFileId: varchar('drive_file_id', { length: 255 }),
+  order:       integer('order').default(0),
+  createdAt:   timestamp('created_at').defaultNow(),
+}, (t) => ({
+  albumIdx: index('photos_album_id_idx').on(t.albumId),
+}));
+
+export const selections = pgTable('selections', {
+  id:        uuid('id').primaryKey().defaultRandom(),
+  albumId:   uuid('album_id').notNull().references(() => albums.id),
+  photoId:   uuid('photo_id').notNull().references(() => photos.id),
+  createdAt: timestamp('created_at').defaultNow(),
+}, (t) => ({
+  albumIdx: index('selections_album_id_idx').on(t.albumId),
+  photoIdx: index('selections_photo_id_idx').on(t.photoId),
+}));
+
+Sau khi sửa schema, chạy migration:
+
+bashpnpm --filter @workspace/db run push
+
+Yêu cầu: Scan toàn bộ file schema, tìm thêm bất kỳ bảng nào có foreign key nhưng chưa có index và bổ sung tương tự.
+
+
+Việc 2 — Sửa N+1 query trong các route public
+
+Vị trí file: tất cả route handler trong artifacts/api-server/src/routes/
+
+Tìm và sửa pattern nguy hiểm này — load record rồi loop query thêm:
+
+typescript// PATTERN SAI — cần tìm và xóa
+const album = await db.query.albums.findFirst({ where: ... });
+const photos = await db.query.photos.findMany({
+  where: eq(photos.albumId, album.id)   // query riêng = N+1
+});
+
+Thay bằng with() để JOIN một lần duy nhất:
+
+typescript// ĐÚNG — dùng with() eager-load
+const album = await db.query.albums.findFirst({
+  where: and(
+    eq(albums.slug, params.albumSlug),
+    eq(albums.studioId, req.tenant?.id ?? studioId),
+  ),
+  columns: {
+    id: true, slug: true, title: true,
+    coverPhotoId: true, isPublished: true, createdAt: true,
+  },
+  with: {
+    photos: {
+      columns: { id: true, driveFileId: true, order: true },
+      orderBy: [asc(photos.order)],
+    },
+    selections: {
+      columns: { id: true, photoId: true, createdAt: true },
+    },
+  },
+});
+
+if (!album) {
+  return res.status(404).json({ error: 'Album not found' });
+}
+
+Yêu cầu:
+
+
+Scan tất cả file trong artifacts/api-server/src/routes/
+Liệt kê từng chỗ đang dùng N+1 pattern
+Sửa toàn bộ, không bỏ sót
+
+
+
+Việc 3 — Cấu hình PM2 cluster
+
+Tạo file mới: ecosystem.config.cjs ở root project
+
+javascript// ecosystem.config.cjs
+module.exports = {
+  apps: [
+    {
+      name:        'lumi-api',
+      script:      './artifacts/api-server/dist/index.js',
+      instances:   'max',          // tự detect số CPU core
+      exec_mode:   'cluster',
+      watch:       false,
+      max_memory_restart: '400M',  // restart worker nếu leak RAM
+      error_file:  './logs/pm2-error.log',
+      out_file:    './logs/pm2-out.log',
+      log_date_format: 'YYYY-MM-DD HH:mm:ss',
+      env_production: {
+        NODE_ENV: 'production',
+        PORT:     8080,
+      },
+      env_development: {
+        NODE_ENV: 'development',
+        PORT:     8080,
+      },
+    },
+  ],
+};
+
+Thêm scripts vào package.json root:
+
+json{
+  "scripts": {
+    "build":        "pnpm --filter @workspace/api-server run build",
+    "start":        "pm2 start ecosystem.config.cjs --env production",
+    "stop":         "pm2 stop lumi-api",
+    "restart":      "pm2 restart lumi-api",
+    "logs":         "pm2 logs lumi-api",
+    "monit":        "pm2 monit"
+  }
+}
+
+Thêm logs/ vào .gitignore:
+
+logs/
+*.log
+
+
+Việc 4 — Nginx reverse proxy + cache ảnh
+
+Tạo file mới: nginx/lumi.conf
+
+nginx# nginx/lumi.conf
+# Copy file này vào /etc/nginx/sites-available/lumi
+# rồi chạy: sudo ln -s /etc/nginx/sites-available/lumi /etc/nginx/sites-enabled/
+
+upstream lumi_api {
+    server 127.0.0.1:8080;
+    keepalive 32;
+}
+
+server {
+    listen 80;
+    server_name _;  # thay bằng domain hoặc IP thực
+
+    # Bật gzip cho text response
+    gzip              on;
+    gzip_vary         on;
+    gzip_proxied      any;
+    gzip_comp_level   6;
+    gzip_types
+        text/plain
+        text/css
+        text/javascript
+        application/json
+        application/javascript
+        image/svg+xml;
+
+    # Serve React build tĩnh — không qua Node.js
+    root  /home/ubuntu/lumi-studio/artifacts/lumiere/dist;
+    index index.html;
+
+    location / {
+        try_files $uri $uri/ /index.html;
+        # Cache static assets 30 ngày
+        location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg|woff2)$ {
+            expires 30d;
+            add_header Cache-Control "public, immutable";
+        }
+    }
+
+    # API — forward sang PM2 workers
+    location /api/ {
+        proxy_pass         http://lumi_api;
+        proxy_http_version 1.1;
+        proxy_set_header   Upgrade    $http_upgrade;
+        proxy_set_header   Connection "upgrade";
+        proxy_set_header   Host       $host;
+        proxy_set_header   X-Real-IP  $remote_addr;
+        proxy_set_header   X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header   X-Forwarded-Host $host;
+        proxy_cache_bypass $http_upgrade;
+        proxy_read_timeout 60s;
+    }
+
+    # Drive proxy — cache ảnh 1 ngày tại Nginx
+    location /api/drive/proxy/ {
+        proxy_pass        http://lumi_api;
+        proxy_cache_valid 200 1d;
+        add_header        Cache-Control "public, max-age=86400";
+        add_header        X-Cache-Status $upstream_cache_status;
+    }
+}
+
+Tạo thêm: nginx/README.md
+
+markdown## Cách deploy Nginx config
+
+# 1. Copy config
+sudo cp nginx/lumi.conf /etc/nginx/sites-available/lumi
+
+# 2. Sửa server_name thành IP hoặc domain thực của máy
+sudo nano /etc/nginx/sites-available/lumi
+
+# 3. Enable site
+sudo ln -s /etc/nginx/sites-available/lumi \
+           /etc/nginx/sites-enabled/lumi
+
+# 4. Test và reload
+sudo nginx -t
+sudo systemctl reload nginx
+
+# 5. Tự chạy khi khởi động
+sudo systemctl enable nginx
+
+
+Yêu cầu tổng quát
+
+
+Không thay đổi logic nghiệp vụ, không đổi tên bảng, không đổi API contract
+Sau mỗi việc, chạy pnpm typecheck và pnpm lint để đảm bảo không có lỗi mới
+Nếu file schema thực tế khác với code mẫu trên, ưu tiên giữ nguyên cấu trúc thực tế và chỉ bổ sung phần index
+Báo cáo những chỗ đã sửa theo định dạng:

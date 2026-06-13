@@ -20,7 +20,9 @@ export const studiosTable = pgTable("studios", {
   defaultMaxSelection: integer("default_max_selection").notNull().default(0),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow().$onUpdate(() => new Date()),
-});
+}, (table) => [
+  index("studios_status_idx").on(table.status),
+]);
 
 export const albumsTable = pgTable("albums", {
   id: uuid("id").primaryKey().defaultRandom(),
@@ -38,6 +40,7 @@ export const albumsTable = pgTable("albums", {
 }, (table) => [
   index("albums_studio_id_created_at_idx").on(table.studioId, table.createdAt),
   index("albums_is_public_created_at_idx").on(table.isPublic, table.createdAt),
+  index("albums_slug_idx").on(table.slug),
 ]);
 
 export const photosTable = pgTable("photos", {
@@ -67,6 +70,7 @@ export const selectionsTable = pgTable("selections", {
   updatedAt: timestamp("updated_at").notNull().defaultNow().$onUpdate(() => new Date()),
 }, (table) => [
   index("selections_album_id_selected_customer_idx").on(table.albumId, table.selected, table.customerName),
+  index("selections_photo_id_idx").on(table.photoId),
 ]);
 
 export const appConfigTable = pgTable("app_config", {
@@ -84,4 +88,5 @@ export const selectionConfirmationsTable = pgTable("selection_confirmations", {
   confirmedAt: timestamp("confirmed_at").notNull().defaultNow(),
 }, (table) => [
   index("sel_confirmations_album_id_confirmed_at_idx").on(table.albumId, table.confirmedAt),
+  index("sel_confirmations_customer_idx").on(table.customerName),
 ]);

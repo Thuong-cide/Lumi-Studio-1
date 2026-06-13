@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
 import { studiosTable, albumsTable, photosTable, selectionsTable, appConfigTable } from "@workspace/db";
-import { eq, count } from "drizzle-orm";
+import { eq, count, inArray } from "drizzle-orm";
 import { requireAuth, getErrorStatus, hashPassword } from "../lib/auth";
 import { getGoogleConfig, invalidateGoogleConfigCache } from "../lib/google-drive";
 
@@ -25,6 +25,7 @@ router.get("/admin/stats", async (req, res): Promise<void> => {
   }
 });
 
+// FIX N+1: Thay vì loop N studios × 1 COUNT query, dùng 1 batch COUNT query grouped by studioId
 router.get("/admin/studios", async (req, res): Promise<void> => {
   try {
     requireAuth(req, "ADMIN");
@@ -46,20 +47,29 @@ router.get("/admin/studios", async (req, res): Promise<void> => {
 
     const studios = await query.orderBy(studiosTable.createdAt);
 
-    const studiosWithCount = await Promise.all(
-      studios.map(async (studio) => {
-        const [albumCountResult] = await db.select({ count: count() }).from(albumsTable).where(eq(albumsTable.studioId, studio.id));
-        return {
-          ...studio,
-          albumCount: Number(albumCountResult.count),
-          googleDriveConnected: false,
-          createdAt: studio.createdAt.toISOString(),
-          updatedAt: studio.updatedAt.toISOString(),
-        };
-      })
-    );
+    if (studios.length === 0) {
+      res.json({ studios: [] });
+      return;
+    }
 
-    res.json({ studios: studiosWithCount });
+    const studioIds = studios.map(s => s.id);
+    const albumCounts = await db
+      .select({ studioId: albumsTable.studioId, cnt: count() })
+      .from(albumsTable)
+      .where(inArray(albumsTable.studioId, studioIds))
+      .groupBy(albumsTable.studioId);
+
+    const albumCountMap = Object.fromEntries(albumCounts.map(r => [r.studioId, Number(r.cnt)]));
+
+    res.json({
+      studios: studios.map(studio => ({
+        ...studio,
+        albumCount: albumCountMap[studio.id] ?? 0,
+        googleDriveConnected: false,
+        createdAt: studio.createdAt.toISOString(),
+        updatedAt: studio.updatedAt.toISOString(),
+      })),
+    });
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : "Server error";
     res.status(getErrorStatus(msg)).json({ error: msg });

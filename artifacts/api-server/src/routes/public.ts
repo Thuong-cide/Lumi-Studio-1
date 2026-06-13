@@ -7,6 +7,7 @@ import { rateLimit, getClientIp } from "../lib/rate-limit";
 
 const router = Router();
 
+// OPT: studio + photos fetched in parallel after album lookup (was 3 sequential queries)
 router.get("/public/album/:slug", async (req, res): Promise<void> => {
   try {
     const slug = Array.isArray(req.params.slug) ? req.params.slug[0] : req.params.slug;
@@ -16,8 +17,10 @@ router.get("/public/album/:slug", async (req, res): Promise<void> => {
       return;
     }
 
-    const [studio] = await db.select({ name: studiosTable.name }).from(studiosTable).where(eq(studiosTable.id, album.studioId));
-    const photos = await db.select().from(photosTable).where(eq(photosTable.albumId, album.id)).orderBy(photosTable.order);
+    const [studioResult, photos] = await Promise.all([
+      db.select({ name: studiosTable.name }).from(studiosTable).where(eq(studiosTable.id, album.studioId)),
+      db.select().from(photosTable).where(eq(photosTable.albumId, album.id)).orderBy(photosTable.order),
+    ]);
 
     res.set("Cache-Control", "public, s-maxage=60, stale-while-revalidate=300");
     res.json({
@@ -28,7 +31,7 @@ router.get("/public/album/:slug", async (req, res): Promise<void> => {
       allowDownload: album.allowDownload,
       allowNotes: album.allowNotes,
       maxSelection: album.maxSelection,
-      studio: { name: studio?.name ?? "" },
+      studio: { name: studioResult[0]?.name ?? "" },
       photos: photos.map(p => ({ ...p, createdAt: p.createdAt.toISOString() })),
     });
   } catch (e) {
