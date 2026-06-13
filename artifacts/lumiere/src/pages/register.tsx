@@ -3,6 +3,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useRegister } from "@workspace/api-client-react";
 import { useLocation, Link } from "wouter";
+import { FloatingContact } from "@/components/floating-contact";
 import { Button } from "@/components/ui/button";
 import {
   Form,
@@ -140,6 +141,8 @@ export default function Register() {
           </div>
         </div>
       </div>
+
+      <FloatingContact />
     </div>
   );
 }

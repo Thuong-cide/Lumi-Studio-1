@@ -2,6 +2,7 @@ import { ReactNode } from "react";
 import { Link, useLocation } from "wouter";
 import { useAuth } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
+import { FloatingContact } from "@/components/floating-contact";
 
 export function StudioLayout({ children }: { children: ReactNode }) {
   const [location] = useLocation();
@@ -40,6 +41,8 @@ export function StudioLayout({ children }: { children: ReactNode }) {
       <main className="flex-1 overflow-auto p-8">
         {children}
       </main>
+
+      <FloatingContact />
     </div>
   );
 }
