@@ -111,6 +111,7 @@ export const ListAdminStudiosResponse = zod.object({
   "phone": zod.string().nullish(),
   "status": zod.enum(['PENDING', 'APPROVED', 'DISABLED']),
   "googleDriveConnected": zod.boolean().optional(),
+  "expiresAt": zod.string().nullish(),
   "createdAt": zod.string(),
   "updatedAt": zod.string(),
   "albumCount": zod.number().optional()
@@ -126,7 +127,8 @@ export const UpdateStudioStatusParams = zod.object({
 })
 
 export const UpdateStudioStatusBody = zod.object({
-  "status": zod.enum(['PENDING', 'APPROVED', 'DISABLED'])
+  "status": zod.enum(['PENDING', 'APPROVED', 'DISABLED']).optional(),
+  "expiresAt": zod.string().nullish()
 })
 
 export const UpdateStudioStatusResponse = zod.object({
@@ -137,6 +139,7 @@ export const UpdateStudioStatusResponse = zod.object({
   "phone": zod.string().nullish(),
   "status": zod.enum(['PENDING', 'APPROVED', 'DISABLED']),
   "googleDriveConnected": zod.boolean().optional(),
+  "expiresAt": zod.string().nullish(),
   "createdAt": zod.string(),
   "updatedAt": zod.string(),
   "albumCount": zod.number().optional()

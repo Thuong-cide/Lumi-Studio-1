@@ -37,6 +37,7 @@ router.get("/admin/studios", async (req, res): Promise<void> => {
       email: studiosTable.email,
       phone: studiosTable.phone,
       status: studiosTable.status,
+      expiresAt: studiosTable.expiresAt,
       createdAt: studiosTable.createdAt,
       updatedAt: studiosTable.updatedAt,
     }).from(studiosTable).$dynamic();
@@ -66,6 +67,7 @@ router.get("/admin/studios", async (req, res): Promise<void> => {
         ...studio,
         albumCount: albumCountMap[studio.id] ?? 0,
         googleDriveConnected: false,
+        expiresAt: studio.expiresAt ? studio.expiresAt.toISOString() : null,
         createdAt: studio.createdAt.toISOString(),
         updatedAt: studio.updatedAt.toISOString(),
       })),
@@ -80,16 +82,49 @@ router.patch("/admin/studios/:id", async (req, res): Promise<void> => {
   try {
     requireAuth(req, "ADMIN");
     const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
-    const { status } = req.body;
-    if (!["PENDING", "APPROVED", "DISABLED"].includes(status)) {
-      res.status(400).json({ error: "Trạng thái không hợp lệ" });
+    const { status, expiresAt } = req.body;
+
+    const patch: Record<string, unknown> = {};
+
+    if (status !== undefined) {
+      if (!["PENDING", "APPROVED", "DISABLED"].includes(status)) {
+        res.status(400).json({ error: "Trạng thái không hợp lệ" });
+        return;
+      }
+      patch.status = status;
+    }
+
+    if (expiresAt !== undefined) {
+      patch.expiresAt = expiresAt ? new Date(expiresAt) : null;
+    }
+
+    if (Object.keys(patch).length === 0) {
+      res.status(400).json({ error: "Không có thông tin cần cập nhật" });
       return;
     }
+
     const [studio] = await db.update(studiosTable)
-      .set({ status })
+      .set(patch)
       .where(eq(studiosTable.id, id))
-      .returning({ id: studiosTable.id, name: studiosTable.name, email: studiosTable.email, status: studiosTable.status, createdAt: studiosTable.createdAt, updatedAt: studiosTable.updatedAt });
-    res.json({ studio: { ...studio, albumCount: 0, googleDriveConnected: false, createdAt: studio.createdAt.toISOString(), updatedAt: studio.updatedAt.toISOString() } });
+      .returning({
+        id: studiosTable.id,
+        name: studiosTable.name,
+        email: studiosTable.email,
+        status: studiosTable.status,
+        expiresAt: studiosTable.expiresAt,
+        createdAt: studiosTable.createdAt,
+        updatedAt: studiosTable.updatedAt,
+      });
+    res.json({
+      studio: {
+        ...studio,
+        albumCount: 0,
+        googleDriveConnected: false,
+        expiresAt: studio.expiresAt ? studio.expiresAt.toISOString() : null,
+        createdAt: studio.createdAt.toISOString(),
+        updatedAt: studio.updatedAt.toISOString(),
+      },
+    });
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : "Server error";
     res.status(getErrorStatus(msg)).json({ error: msg });

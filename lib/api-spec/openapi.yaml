@@ -748,6 +748,8 @@ components:
           enum: [PENDING, APPROVED, DISABLED]
         googleDriveConnected:
           type: boolean
+        expiresAt:
+          type: ["string", "null"]
         createdAt:
           type: string
         updatedAt:
@@ -773,11 +775,12 @@ components:
 
     StudioStatusUpdate:
       type: object
-      required: [status]
       properties:
         status:
           type: string
           enum: [PENDING, APPROVED, DISABLED]
+        expiresAt:
+          type: ["string", "null"]
 
     StudioSettingsUpdate:
       type: object

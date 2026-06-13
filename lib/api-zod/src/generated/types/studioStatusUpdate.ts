@@ -8,5 +8,7 @@
 import type { StudioStatusUpdateStatus } from './studioStatusUpdateStatus';
 
 export interface StudioStatusUpdate {
-  status: StudioStatusUpdateStatus;
+  status?: StudioStatusUpdateStatus;
+  /** @nullable */
+  expiresAt?: string | null;
 }

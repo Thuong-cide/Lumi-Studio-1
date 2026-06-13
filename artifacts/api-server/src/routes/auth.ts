@@ -43,6 +43,10 @@ router.post("/auth/login", async (req, res): Promise<void> => {
       res.status(403).json({ error: "Tài khoản đã bị vô hiệu hóa. Vui lòng liên hệ Admin." });
       return;
     }
+    if (studio.expiresAt && studio.expiresAt < new Date()) {
+      res.status(403).json({ error: "Tài khoản đã hết hạn sử dụng. Vui lòng liên hệ Admin để gia hạn." });
+      return;
+    }
 
     const token = signToken({ id: studio.id, email: studio.email, role: "STUDIO", status: studio.status });
     res.cookie("lumiere_token", token, {

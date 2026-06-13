@@ -115,6 +115,8 @@ export interface Studio {
   phone?: string | null;
   status: StudioStatus;
   googleDriveConnected?: boolean;
+  /** @nullable */
+  expiresAt?: string | null;
   createdAt: string;
   updatedAt: string;
   albumCount?: number;
@@ -138,7 +140,9 @@ export const StudioStatusUpdateStatus = {
 } as const;
 
 export interface StudioStatusUpdate {
-  status: StudioStatusUpdateStatus;
+  status?: StudioStatusUpdateStatus;
+  /** @nullable */
+  expiresAt?: string | null;
 }
 
 export interface StudioSettingsUpdate {
