@@ -13,6 +13,7 @@ import { StudioLayout } from "@/components/layout/studio-layout";
 
 import AdminDashboard from "@/pages/admin/dashboard";
 import AdminStudios from "@/pages/admin/studios";
+import AdminConfig from "@/pages/admin/config";
 
 import StudioDashboard from "@/pages/studio/dashboard";
 import StudioAlbums from "@/pages/studio/albums";
@@ -84,6 +85,9 @@ function Router() {
       </Route>
       <Route path="/admin/studios">
         <ProtectedRoute role="ADMIN" layout={AdminLayout} component={AdminStudios} />
+      </Route>
+      <Route path="/admin/config">
+        <ProtectedRoute role="ADMIN" layout={AdminLayout} component={AdminConfig} />
       </Route>
       
       <Route path="/dashboard">

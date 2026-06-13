@@ -1,16 +1,47 @@
 import { google } from "googleapis";
 import { Readable } from "stream";
+import { db } from "@workspace/db";
+import { appConfigTable } from "@workspace/db";
+import { eq } from "drizzle-orm";
 
-function getOAuthClient() {
-  return new google.auth.OAuth2(
-    process.env.GOOGLE_CLIENT_ID!,
-    process.env.GOOGLE_CLIENT_SECRET!,
-    process.env.GOOGLE_REDIRECT_URI!
-  );
+interface GoogleConfig {
+  clientId: string;
+  clientSecret: string;
+  redirectUri: string;
 }
 
-export function getAuthUrl(state?: string): string {
-  const oauth2 = getOAuthClient();
+let _configCache: GoogleConfig | null = null;
+
+export async function getGoogleConfig(): Promise<GoogleConfig> {
+  if (_configCache) return _configCache;
+  try {
+    const [row] = await db.select().from(appConfigTable).where(eq(appConfigTable.key, "google_oauth"));
+    if (row) {
+      const parsed = JSON.parse(row.value) as GoogleConfig;
+      if (parsed.clientId && parsed.clientSecret && parsed.redirectUri) {
+        _configCache = parsed;
+        return _configCache;
+      }
+    }
+  } catch {}
+  return {
+    clientId: process.env.GOOGLE_CLIENT_ID || "",
+    clientSecret: process.env.GOOGLE_CLIENT_SECRET || "",
+    redirectUri: process.env.GOOGLE_REDIRECT_URI || "",
+  };
+}
+
+export function invalidateGoogleConfigCache() {
+  _configCache = null;
+}
+
+async function getOAuthClient() {
+  const config = await getGoogleConfig();
+  return new google.auth.OAuth2(config.clientId, config.clientSecret, config.redirectUri);
+}
+
+export async function getAuthUrl(state?: string): Promise<string> {
+  const oauth2 = await getOAuthClient();
   return oauth2.generateAuthUrl({
     access_type: "offline",
     prompt: "consent",
@@ -20,7 +51,7 @@ export function getAuthUrl(state?: string): string {
 }
 
 export async function getTokensFromCode(code: string): Promise<{ refreshToken: string; accessToken: string }> {
-  const oauth2 = getOAuthClient();
+  const oauth2 = await getOAuthClient();
   const { tokens } = await oauth2.getToken(code);
   if (!tokens.refresh_token) {
     throw new Error("Không nhận được refresh token. Hãy revoke quyền truy cập và thử lại.");
@@ -31,14 +62,14 @@ export async function getTokensFromCode(code: string): Promise<{ refreshToken: s
   };
 }
 
-export function getDriveClient(refreshToken: string) {
-  const oauth2 = getOAuthClient();
+export async function getDriveClient(refreshToken: string) {
+  const oauth2 = await getOAuthClient();
   oauth2.setCredentials({ refresh_token: refreshToken });
   return google.drive({ version: "v3", auth: oauth2 });
 }
 
 export async function createFolder(refreshToken: string, name: string, parentId?: string): Promise<string> {
-  const drive = getDriveClient(refreshToken);
+  const drive = await getDriveClient(refreshToken);
   const res = await drive.files.create({
     requestBody: {
       name,
@@ -57,7 +88,7 @@ export async function uploadFileToDrive(
   mimeType: string,
   buffer: Buffer
 ): Promise<{ fileId: string; thumbnailUrl: string }> {
-  const drive = getDriveClient(refreshToken);
+  const drive = await getDriveClient(refreshToken);
   const stream = new Readable();
   stream.push(buffer);
   stream.push(null);
@@ -74,7 +105,7 @@ export async function uploadFileToDrive(
 }
 
 export async function getFileStream(refreshToken: string, fileId: string): Promise<NodeJS.ReadableStream> {
-  const drive = getDriveClient(refreshToken);
+  const drive = await getDriveClient(refreshToken);
   const res = await drive.files.get(
     { fileId, alt: "media" },
     { responseType: "stream" }

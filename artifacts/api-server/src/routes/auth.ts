@@ -154,7 +154,7 @@ router.get("/auth/me", async (req, res): Promise<void> => {
 router.get("/auth/google", async (req, res): Promise<void> => {
   try {
     const payload = requireAuth(req, "STUDIO");
-    const url = getAuthUrl(payload.id);
+    const url = await getAuthUrl(payload.id);
     res.json({ url });
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : "Unauthorized";

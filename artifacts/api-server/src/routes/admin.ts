@@ -1,8 +1,9 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
-import { studiosTable, albumsTable, photosTable, selectionsTable } from "@workspace/db";
+import { studiosTable, albumsTable, photosTable, selectionsTable, appConfigTable } from "@workspace/db";
 import { eq, count } from "drizzle-orm";
 import { requireAuth, getErrorStatus, hashPassword } from "../lib/auth";
+import { getGoogleConfig, invalidateGoogleConfigCache } from "../lib/google-drive";
 
 const router = Router();
 
@@ -114,6 +115,46 @@ router.delete("/admin/studios/:id", async (req, res): Promise<void> => {
     requireAuth(req, "ADMIN");
     const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
     await db.delete(studiosTable).where(eq(studiosTable.id, id));
+    res.json({ success: true });
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : "Server error";
+    res.status(getErrorStatus(msg)).json({ error: msg });
+  }
+});
+
+router.get("/admin/config", async (req, res): Promise<void> => {
+  try {
+    requireAuth(req, "ADMIN");
+    const config = await getGoogleConfig();
+    res.json({
+      googleClientId: config.clientId,
+      googleClientSecret: config.clientSecret ? "••••••••" : "",
+      googleRedirectUri: config.redirectUri,
+      isConfigured: !!(config.clientId && config.clientSecret && config.redirectUri),
+    });
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : "Server error";
+    res.status(getErrorStatus(msg)).json({ error: msg });
+  }
+});
+
+router.patch("/admin/config", async (req, res): Promise<void> => {
+  try {
+    requireAuth(req, "ADMIN");
+    const { googleClientId, googleClientSecret, googleRedirectUri } = req.body;
+    if (!googleClientId?.trim() || !googleClientSecret?.trim() || !googleRedirectUri?.trim()) {
+      res.status(400).json({ error: "Vui lòng điền đầy đủ Client ID, Client Secret và Redirect URI" });
+      return;
+    }
+    const value = JSON.stringify({
+      clientId: googleClientId.trim(),
+      clientSecret: googleClientSecret.trim(),
+      redirectUri: googleRedirectUri.trim(),
+    });
+    await db.insert(appConfigTable)
+      .values({ key: "google_oauth", value })
+      .onConflictDoUpdate({ target: appConfigTable.key, set: { value } });
+    invalidateGoogleConfigCache();
     res.json({ success: true });
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : "Server error";

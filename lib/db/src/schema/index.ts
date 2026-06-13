@@ -69,6 +69,12 @@ export const selectionsTable = pgTable("selections", {
   index("selections_album_id_selected_customer_idx").on(table.albumId, table.selected, table.customerName),
 ]);
 
+export const appConfigTable = pgTable("app_config", {
+  key: text("key").primaryKey(),
+  value: text("value").notNull(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow().$onUpdate(() => new Date()),
+});
+
 export const selectionConfirmationsTable = pgTable("selection_confirmations", {
   id: uuid("id").primaryKey().defaultRandom(),
   albumId: uuid("album_id").notNull().references(() => albumsTable.id, { onDelete: "cascade" }),

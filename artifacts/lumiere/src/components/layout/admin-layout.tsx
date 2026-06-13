@@ -24,6 +24,11 @@ export function AdminLayout({ children }: { children: ReactNode }) {
               Quản lý Studio
             </span>
           </Link>
+          <Link href="/admin/config">
+            <span className={`block px-4 py-2 rounded-md hover:bg-primary/10 cursor-pointer ${location === "/admin/config" ? "bg-primary/10 text-primary font-medium" : "text-muted-foreground"}`}>
+              Cấu hình Google API
+            </span>
+          </Link>
         </nav>
         <div className="p-4 border-t border-border">
           <Button variant="ghost" className="w-full justify-start text-destructive hover:bg-destructive/10 hover:text-destructive" onClick={logout}>
