@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
-import { studiosTable, albumsTable, selectionsTable, photosTable } from "@workspace/db";
-import { eq, count } from "drizzle-orm";
+import { studiosTable, albumsTable, selectionsTable, photosTable, selectionConfirmationsTable } from "@workspace/db";
+import { eq, count, desc } from "drizzle-orm";
 import { requireAuth, hashPassword, getErrorStatus } from "../lib/auth";
 import { slugify } from "../lib/utils";
 import { createFolder } from "../lib/google-drive";
@@ -152,6 +152,35 @@ router.patch("/studios/albums/:id", async (req, res): Promise<void> => {
     }
     await db.update(albumsTable).set(data).where(eq(albumsTable.id, id));
     res.json({ success: true });
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : "Server error";
+    res.status(getErrorStatus(msg)).json({ error: msg });
+  }
+});
+
+router.get("/studios/albums/:id/confirmations", async (req, res): Promise<void> => {
+  try {
+    const payload = requireAuth(req, "STUDIO");
+    const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+    const [album] = await db.select().from(albumsTable).where(eq(albumsTable.id, id));
+    if (!album || album.studioId !== payload.id) {
+      res.status(404).json({ error: "Không tìm thấy album" });
+      return;
+    }
+    const confirmations = await db
+      .select()
+      .from(selectionConfirmationsTable)
+      .where(eq(selectionConfirmationsTable.albumId, id))
+      .orderBy(desc(selectionConfirmationsTable.confirmedAt));
+    res.json({
+      confirmations: confirmations.map(c => ({
+        id: c.id,
+        customerName: c.customerName,
+        photoCount: c.photoCount,
+        snapshot: JSON.parse(c.snapshot),
+        confirmedAt: c.confirmedAt.toISOString(),
+      })),
+    });
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : "Server error";
     res.status(getErrorStatus(msg)).json({ error: msg });

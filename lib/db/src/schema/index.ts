@@ -68,3 +68,14 @@ export const selectionsTable = pgTable("selections", {
 }, (table) => [
   index("selections_album_id_selected_customer_idx").on(table.albumId, table.selected, table.customerName),
 ]);
+
+export const selectionConfirmationsTable = pgTable("selection_confirmations", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  albumId: uuid("album_id").notNull().references(() => albumsTable.id, { onDelete: "cascade" }),
+  customerName: text("customer_name").notNull(),
+  photoCount: integer("photo_count").notNull(),
+  snapshot: text("snapshot").notNull(),
+  confirmedAt: timestamp("confirmed_at").notNull().defaultNow(),
+}, (table) => [
+  index("sel_confirmations_album_id_confirmed_at_idx").on(table.albumId, table.confirmedAt),
+]);

@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Heart, X, Check, Loader2, ChevronLeft, ChevronRight } from "lucide-react";
+import { Heart, X, Check, Loader2, ChevronLeft, ChevronRight, CheckCircle2 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "@/hooks/use-toast";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
@@ -20,6 +20,9 @@ export default function PublicGallery() {
   const [noteOpenFor, setNoteOpenFor] = useState<string | null>(null);
   const [noteText, setNoteText] = useState("");
   const [showOnlySelected, setShowOnlySelected] = useState(false);
+  const [showConfirmDialog, setShowConfirmDialog] = useState(false);
+  const [isConfirming, setIsConfirming] = useState(false);
+  const [confirmed, setConfirmed] = useState(false);
 
   // --- Zoom state ---
   const [scale, setScale] = useState(1);
@@ -297,6 +300,30 @@ export default function PublicGallery() {
     setNoteText("");
   };
 
+  const handleConfirmSelection = async () => {
+    if (!slug || !customerName || isConfirming) return;
+    setIsConfirming(true);
+    try {
+      const res = await fetch(`/api/public/album/${encodeURIComponent(slug)}/confirm`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ customerName }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        toast({ title: "Lỗi", description: data.error || "Không thể xác nhận", variant: "destructive" });
+        return;
+      }
+      setConfirmed(true);
+      setShowConfirmDialog(false);
+      toast({ title: "Đã xác nhận!", description: `${data.photoCount} ảnh đã được gửi đến studio.` });
+    } catch {
+      toast({ title: "Lỗi kết nối", description: "Vui lòng thử lại.", variant: "destructive" });
+    } finally {
+      setIsConfirming(false);
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
@@ -383,6 +410,19 @@ export default function PublicGallery() {
             <div className="bg-primary text-primary-foreground px-4 py-1.5 rounded-full text-sm font-medium shadow-sm">
               {selectedCount}{maxSelection > 0 ? ` / ${maxSelection}` : ""}
             </div>
+            {selectedCount > 0 && (
+              <button
+                onClick={() => setShowConfirmDialog(true)}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium transition-all shadow-sm border ${
+                  confirmed
+                    ? "bg-green-500 text-white border-green-500"
+                    : "bg-primary text-primary-foreground border-primary hover:bg-primary/90"
+                }`}
+              >
+                <CheckCircle2 className="h-3.5 w-3.5" />
+                <span className="hidden sm:inline">{confirmed ? "Đã xác nhận" : "Xác nhận"}</span>
+              </button>
+            )}
           </div>
         </div>
       </div>
@@ -605,6 +645,48 @@ export default function PublicGallery() {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Dialog xác nhận danh sách */}
+      <Dialog open={showConfirmDialog} onOpenChange={setShowConfirmDialog}>
+        <DialogContent className="max-w-sm mx-auto">
+          <div className="text-center space-y-4 py-2">
+            <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mx-auto">
+              <CheckCircle2 className="h-8 w-8 text-primary" />
+            </div>
+            <div>
+              <h2 className="text-xl font-serif font-semibold">Xác nhận danh sách</h2>
+              <p className="text-muted-foreground text-sm mt-1">
+                Bạn đang xác nhận <span className="font-semibold text-foreground">{selectedCount} ảnh</span> đã chọn.
+                Studio sẽ nhận được danh sách này.
+              </p>
+            </div>
+            <div className="bg-muted/50 rounded-lg p-3 text-left">
+              <p className="text-xs text-muted-foreground mb-1">Khách hàng</p>
+              <p className="font-medium text-sm">{customerName}</p>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Bạn vẫn có thể thay đổi lựa chọn và xác nhận lại sau khi gửi.
+            </p>
+            <div className="flex gap-3 pt-1">
+              <Button
+                variant="outline"
+                className="flex-1"
+                onClick={() => setShowConfirmDialog(false)}
+                disabled={isConfirming}
+              >
+                Huỷ
+              </Button>
+              <Button
+                className="flex-1"
+                onClick={handleConfirmSelection}
+                disabled={isConfirming}
+              >
+                {isConfirming ? <Loader2 className="h-4 w-4 animate-spin" /> : "Gửi xác nhận"}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

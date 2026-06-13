@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
-import { albumsTable, photosTable, selectionsTable, studiosTable } from "@workspace/db";
+import { albumsTable, photosTable, selectionsTable, studiosTable, selectionConfirmationsTable } from "@workspace/db";
 import { eq, and } from "drizzle-orm";
 import { logger } from "../lib/logger";
 import { rateLimit, getClientIp } from "../lib/rate-limit";
@@ -135,6 +135,71 @@ router.post("/public/album/:slug/select", async (req, res): Promise<void> => {
     const msg = e instanceof Error ? e.message : "Lỗi server";
     const status = msg.includes("tối đa") ? 400 : 500;
     res.status(status).json({ error: msg });
+  }
+});
+
+router.post("/public/album/:slug/confirm", async (req, res): Promise<void> => {
+  try {
+    const ip = getClientIp(req);
+    const limit = rateLimit(`confirm:${ip}`, { windowMs: 60_000, max: 10 });
+    if (!limit.success) {
+      res.status(429).set("Retry-After", String(Math.ceil((limit.resetTime - Date.now()) / 1000))).json({ error: "Quá nhiều yêu cầu. Vui lòng chờ một chút rồi thử lại." });
+      return;
+    }
+
+    const slug = Array.isArray(req.params.slug) ? req.params.slug[0] : req.params.slug;
+    const { customerName } = req.body;
+    if (!customerName?.trim()) {
+      res.status(400).json({ error: "Thiếu tên khách hàng" });
+      return;
+    }
+
+    const [album] = await db.select().from(albumsTable).where(and(eq(albumsTable.slug, slug), eq(albumsTable.isPublic, true)));
+    if (!album) {
+      res.status(404).json({ error: "Album không tìm thấy" });
+      return;
+    }
+
+    const trimmedName = customerName.trim();
+
+    const selectedRows = await db
+      .select({ photoId: selectionsTable.photoId, note: selectionsTable.note, filename: photosTable.filename })
+      .from(selectionsTable)
+      .leftJoin(photosTable, eq(selectionsTable.photoId, photosTable.id))
+      .where(and(
+        eq(selectionsTable.albumId, album.id),
+        eq(selectionsTable.customerName, trimmedName),
+        eq(selectionsTable.selected, true)
+      ));
+
+    if (selectedRows.length === 0) {
+      res.status(400).json({ error: "Bạn chưa chọn ảnh nào" });
+      return;
+    }
+
+    const snapshot = JSON.stringify(selectedRows.map(r => ({
+      photoId: r.photoId,
+      filename: r.filename || r.photoId,
+      note: r.note || null,
+    })));
+
+    const [confirmation] = await db.insert(selectionConfirmationsTable).values({
+      albumId: album.id,
+      customerName: trimmedName,
+      photoCount: selectedRows.length,
+      snapshot,
+    }).returning();
+
+    logger.info({ albumId: album.id, customerName: trimmedName, photoCount: selectedRows.length }, "[CONFIRM SELECTION]");
+
+    res.json({
+      id: confirmation.id,
+      photoCount: confirmation.photoCount,
+      confirmedAt: confirmation.confirmedAt.toISOString(),
+    });
+  } catch (e) {
+    logger.error(e, "[CONFIRM]");
+    res.status(500).json({ error: "Lỗi server" });
   }
 });
 
