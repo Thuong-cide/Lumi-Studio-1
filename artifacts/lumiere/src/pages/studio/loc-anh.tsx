@@ -13,7 +13,6 @@ import {
   Play,
   FolderInput,
   FolderOutput,
-  FolderPlus,
 } from "lucide-react";
 
 interface LocAnhProps {
@@ -89,8 +88,6 @@ export default function LocAnh({ selectedFileNames }: LocAnhProps) {
   const [destHandle, setDestHandle] = useState<any>(null);
   const [destName, setDestName] = useState("");
   const [subfolderName, setSubfolderName] = useState("Culled");
-  const [parentHandle, setParentHandle] = useState<any>(null);
-  const [parentName, setParentName] = useState("");
   const [selectedFormats, setSelectedFormats] = useState<Set<string>>(new Set(["NEF", "JPG"]));
   const [isRunning, setIsRunning] = useState(false);
   const [progress, setProgress] = useState({ done: 0, total: 0 });
@@ -134,23 +131,13 @@ export default function LocAnh({ selectedFileNames }: LocAnhProps) {
     } catch (_) {}
   }
 
-  async function pickParentFolder() {
-    try {
-      const handle = await (window as any).showDirectoryPicker({ mode: "readwrite" });
-      setParentHandle(handle);
-      setParentName(handle.name);
-      setDestHandle(null);
-      setDestName("");
-    } catch (_) {}
-  }
-
   async function handleStart() {
     if (!srcHandle || fileNames.length === 0 || selectedFormats.size === 0) return;
 
     let resolvedDest = destHandle;
     if (destMode === "subfolder") {
-      if (!parentHandle || !subfolderName.trim()) return;
-      resolvedDest = await parentHandle.getDirectoryHandle(subfolderName.trim(), { create: true });
+      if (!srcHandle || !subfolderName.trim()) return;
+      resolvedDest = await srcHandle.getDirectoryHandle(subfolderName.trim(), { create: true });
     }
     if (!resolvedDest) return;
 
@@ -204,7 +191,7 @@ export default function LocAnh({ selectedFileNames }: LocAnhProps) {
     fileNames.length > 0 &&
     srcHandle !== null &&
     selectedFormats.size > 0 &&
-    (destMode === "pick" ? destHandle !== null : parentHandle !== null && subfolderName.trim() !== "");
+    (destMode === "pick" ? destHandle !== null : srcHandle !== null && subfolderName.trim() !== "");
 
   const progressPct = progress.total > 0 ? Math.round((progress.done / progress.total) * 100) : 0;
 
@@ -371,20 +358,16 @@ export default function LocAnh({ selectedFileNames }: LocAnhProps) {
                   className="h-9 w-48 text-sm font-mono"
                 />
               </div>
-              <Button variant="outline" onClick={pickParentFolder} className="gap-2">
-                <FolderPlus className="h-4 w-4" />
-                Chọn thư mục cha
-              </Button>
-              {parentName ? (
+              {srcName ? (
                 <div className="flex items-center gap-2 text-sm font-medium text-foreground bg-muted/40 rounded-lg px-3 py-2 border">
                   <FolderOpen className="h-4 w-4 text-primary shrink-0" />
-                  <span>{parentName}</span>
+                  <span>{srcName}</span>
                   <span className="text-muted-foreground">/</span>
                   <span className="text-primary font-semibold">{subfolderName || "..."}</span>
-                  <span className="text-xs text-muted-foreground ml-auto">sẽ được tạo</span>
+                  <span className="text-xs text-muted-foreground ml-auto">sẽ được tạo trong thư mục nguồn</span>
                 </div>
               ) : (
-                <p className="text-xs text-muted-foreground">Chưa chọn thư mục cha</p>
+                <p className="text-xs text-amber-600">⬆ Cần chọn thư mục nguồn ở Bước 2 trước</p>
               )}
             </div>
           )}
