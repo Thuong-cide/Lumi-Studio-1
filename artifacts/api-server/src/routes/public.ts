@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
-import { albumsTable, photosTable, selectionsTable, studiosTable, selectionConfirmationsTable } from "@workspace/db";
+import { albumsTable, photosTable, selectionsTable, studiosTable, selectionConfirmationsTable, appConfigTable } from "@workspace/db";
 import { eq, and } from "drizzle-orm";
 import { logger } from "../lib/logger";
 import { rateLimit, getClientIp } from "../lib/rate-limit";
@@ -203,6 +203,21 @@ router.post("/public/album/:slug/confirm", async (req, res): Promise<void> => {
   } catch (e) {
     logger.error(e, "[CONFIRM]");
     res.status(500).json({ error: "Lỗi server" });
+  }
+});
+
+router.get("/public/contact", async (_req, res): Promise<void> => {
+  try {
+    const [row] = await db.select().from(appConfigTable).where(eq(appConfigTable.key, "contact_info"));
+    if (!row) {
+      res.json({ enabled: false, zalo: "", facebook: "", phone: "", telegram: "" });
+      return;
+    }
+    const data = JSON.parse(row.value);
+    res.set("Cache-Control", "public, s-maxage=60, stale-while-revalidate=300");
+    res.json(data);
+  } catch {
+    res.json({ enabled: false, zalo: "", facebook: "", phone: "", telegram: "" });
   }
 });
 

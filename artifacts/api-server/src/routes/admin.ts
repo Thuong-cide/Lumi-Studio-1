@@ -170,12 +170,17 @@ router.delete("/admin/studios/:id", async (req, res): Promise<void> => {
 router.get("/admin/config", async (req, res): Promise<void> => {
   try {
     requireAuth(req, "ADMIN");
-    const config = await getGoogleConfig();
+    const [googleConfig, contactRow] = await Promise.all([
+      getGoogleConfig(),
+      db.select().from(appConfigTable).where(eq(appConfigTable.key, "contact_info")).then(r => r[0]),
+    ]);
+    const contact = contactRow ? JSON.parse(contactRow.value) : { enabled: false, zalo: "", facebook: "", phone: "", telegram: "" };
     res.json({
-      googleClientId: config.clientId,
-      googleClientSecret: config.clientSecret ? "••••••••" : "",
-      googleRedirectUri: config.redirectUri,
-      isConfigured: !!(config.clientId && config.clientSecret && config.redirectUri),
+      googleClientId: googleConfig.clientId,
+      googleClientSecret: googleConfig.clientSecret ? "••••••••" : "",
+      googleRedirectUri: googleConfig.redirectUri,
+      isConfigured: !!(googleConfig.clientId && googleConfig.clientSecret && googleConfig.redirectUri),
+      contact,
     });
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : "Server error";
@@ -186,20 +191,44 @@ router.get("/admin/config", async (req, res): Promise<void> => {
 router.patch("/admin/config", async (req, res): Promise<void> => {
   try {
     requireAuth(req, "ADMIN");
-    const { googleClientId, googleClientSecret, googleRedirectUri } = req.body;
-    if (!googleClientId?.trim() || !googleClientSecret?.trim() || !googleRedirectUri?.trim()) {
-      res.status(400).json({ error: "Vui lòng điền đầy đủ Client ID, Client Secret và Redirect URI" });
-      return;
+    const { googleClientId, googleClientSecret, googleRedirectUri, contact } = req.body;
+
+    const updates: Promise<unknown>[] = [];
+
+    if (googleClientId !== undefined || googleClientSecret !== undefined || googleRedirectUri !== undefined) {
+      if (!googleClientId?.trim() || !googleClientSecret?.trim() || !googleRedirectUri?.trim()) {
+        res.status(400).json({ error: "Vui lòng điền đầy đủ Client ID, Client Secret và Redirect URI" });
+        return;
+      }
+      const value = JSON.stringify({
+        clientId: googleClientId.trim(),
+        clientSecret: googleClientSecret.trim(),
+        redirectUri: googleRedirectUri.trim(),
+      });
+      updates.push(
+        db.insert(appConfigTable)
+          .values({ key: "google_oauth", value })
+          .onConflictDoUpdate({ target: appConfigTable.key, set: { value } })
+      );
+      invalidateGoogleConfigCache();
     }
-    const value = JSON.stringify({
-      clientId: googleClientId.trim(),
-      clientSecret: googleClientSecret.trim(),
-      redirectUri: googleRedirectUri.trim(),
-    });
-    await db.insert(appConfigTable)
-      .values({ key: "google_oauth", value })
-      .onConflictDoUpdate({ target: appConfigTable.key, set: { value } });
-    invalidateGoogleConfigCache();
+
+    if (contact !== undefined) {
+      const contactValue = JSON.stringify({
+        enabled: !!contact.enabled,
+        zalo: contact.zalo?.trim() || "",
+        facebook: contact.facebook?.trim() || "",
+        phone: contact.phone?.trim() || "",
+        telegram: contact.telegram?.trim() || "",
+      });
+      updates.push(
+        db.insert(appConfigTable)
+          .values({ key: "contact_info", value: contactValue })
+          .onConflictDoUpdate({ target: appConfigTable.key, set: { value: contactValue } })
+      );
+    }
+
+    await Promise.all(updates);
     res.json({ success: true });
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : "Server error";
