@@ -14,11 +14,16 @@ export default function StudioDrive() {
   const isConnected = me?.studio?.googleDriveConnected;
 
   const [status, setStatus] = useState<"success" | "error" | null>(null);
+  const [errorMsg, setErrorMsg] = useState<string>("");
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    if (params.get("success") === "true") setStatus("success");
-    if (params.get("error")) setStatus("error");
+    if (params.get("success") === "1" || params.get("success") === "true") setStatus("success");
+    const err = params.get("error");
+    if (err) {
+      setStatus("error");
+      setErrorMsg(decodeURIComponent(err));
+    }
   }, []);
 
   const handleConnect = () => {
@@ -48,9 +53,43 @@ export default function StudioDrive() {
       )}
 
       {status === "error" && (
-        <div className="bg-destructive/10 border border-destructive/30 text-destructive p-4 rounded-lg flex items-center">
-          <AlertCircle className="h-5 w-5 mr-3" />
-          Kết nối thất bại. Vui lòng thử lại.
+        <div className="bg-destructive/10 border border-destructive/30 text-destructive p-4 rounded-lg space-y-2">
+          <div className="flex items-start gap-3">
+            <AlertCircle className="h-5 w-5 shrink-0 mt-0.5" />
+            <div className="space-y-1.5">
+              <p className="font-medium">Kết nối thất bại</p>
+              {errorMsg.includes("not been used") || errorMsg.includes("disabled") ? (
+                <div className="text-sm space-y-1">
+                  <p>Google Drive API chưa được bật trong project Google Cloud của bạn.</p>
+                  <p>
+                    <a
+                      href={`https://console.developers.google.com/apis/api/drive.googleapis.com/overview`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="underline underline-offset-2 font-medium"
+                    >
+                      Bấm vào đây để bật Google Drive API →
+                    </a>
+                  </p>
+                  <p className="text-destructive/70">Sau khi bật, chờ 1–2 phút rồi thử kết nối lại.</p>
+                </div>
+              ) : errorMsg.includes("redirect_uri_mismatch") || errorMsg.includes("redirect") ? (
+                <div className="text-sm space-y-1">
+                  <p>Redirect URI không khớp với cài đặt trong Google Cloud Console.</p>
+                  <p className="text-destructive/70">Kiểm tra lại Redirect URI trong trang <strong>Cài đặt &gt; Cấu hình Google API</strong> và Google Cloud Console phải giống nhau.</p>
+                </div>
+              ) : errorMsg === "access_denied" ? (
+                <p className="text-sm">Bạn đã từ chối quyền truy cập. Hãy bấm "Kết nối" và chọn "Allow".</p>
+              ) : errorMsg.includes("invalid_client") ? (
+                <div className="text-sm space-y-1">
+                  <p>Client ID hoặc Client Secret không hợp lệ.</p>
+                  <p className="text-destructive/70">Vào <strong>Admin &gt; Cấu hình Google API</strong> để kiểm tra lại thông tin.</p>
+                </div>
+              ) : (
+                <p className="text-sm text-destructive/80 font-mono break-all">{errorMsg || "Lỗi không xác định. Vui lòng thử lại."}</p>
+              )}
+            </div>
+          </div>
         </div>
       )}
 
