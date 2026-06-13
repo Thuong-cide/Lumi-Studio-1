@@ -534,6 +534,67 @@ paths:
               schema:
                 $ref: "#/components/schemas/Selection"
 
+  /studios/albums/{id}/deliverables:
+    get:
+      operationId: listDeliverables
+      tags: [studios]
+      summary: List deliverables for an album
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Deliverables list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeliverablesListResult"
+    post:
+      operationId: createDeliverable
+      tags: [studios]
+      summary: Create a new deliverable for an album
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DeliverableInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeliverableResult"
+
+  /public/album/{slug}/deliverables:
+    get:
+      operationId: getPublicDeliverables
+      tags: [public]
+      summary: Get deliverables for a public album
+      parameters:
+        - name: slug
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Deliverables
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PublicDeliverablesResult"
+
 components:
   schemas:
     HealthStatus:
@@ -777,6 +838,8 @@ components:
           type: ["string", "null"]
         webhookLastStatus:
           type: ["string", "null"]
+        deliverableRootFolderUrl:
+          type: ["string", "null"]
         createdAt:
           type: string
         updatedAt:
@@ -880,6 +943,8 @@ components:
         webhookSentAt:
           type: ["string", "null"]
         webhookLastStatus:
+          type: ["string", "null"]
+        deliverableRootFolderUrl:
           type: ["string", "null"]
         createdAt:
           type: string
@@ -1031,3 +1096,96 @@ components:
           type: string
         selected:
           type: boolean
+
+    DeliverablePhotoInput:
+      type: object
+      required: [originalPhotoId, editedImageUrl]
+      properties:
+        originalPhotoId:
+          type: string
+        editedImageUrl:
+          type: string
+        caption:
+          type: string
+
+    DeliverableInput:
+      type: object
+      required: [versionFolderUrl, photos]
+      properties:
+        versionFolderUrl:
+          type: string
+        deliverableRootFolderUrl:
+          type: string
+        note:
+          type: string
+        photos:
+          type: array
+          items:
+            $ref: "#/components/schemas/DeliverablePhotoInput"
+
+    DeliverablePhoto:
+      type: object
+      required: [id, deliverableId, originalPhotoId, editedImageUrl]
+      properties:
+        id:
+          type: string
+        deliverableId:
+          type: string
+        originalPhotoId:
+          type: string
+        editedImageUrl:
+          type: string
+        caption:
+          type: ["string", "null"]
+        originalPhoto:
+          $ref: "#/components/schemas/Photo"
+
+    Deliverable:
+      type: object
+      required: [id, albumId, version, versionLabel, driveFolderUrl, createdAt, updatedAt]
+      properties:
+        id:
+          type: string
+        albumId:
+          type: string
+        version:
+          type: integer
+        versionLabel:
+          type: string
+        driveFolderUrl:
+          type: string
+        note:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+        updatedAt:
+          type: string
+        photos:
+          type: array
+          items:
+            $ref: "#/components/schemas/DeliverablePhoto"
+
+    DeliverableResult:
+      type: object
+      required: [deliverable]
+      properties:
+        deliverable:
+          $ref: "#/components/schemas/Deliverable"
+
+    DeliverablesListResult:
+      type: object
+      required: [deliverables]
+      properties:
+        deliverables:
+          type: array
+          items:
+            $ref: "#/components/schemas/Deliverable"
+
+    PublicDeliverablesResult:
+      type: object
+      required: [deliverables]
+      properties:
+        deliverables:
+          type: array
+          items:
+            $ref: "#/components/schemas/Deliverable"

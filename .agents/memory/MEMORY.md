@@ -1,0 +1,2 @@
+- [JWT payload shape](jwt-payload-shape.md) — `requireAuth` returns `JWTPayload` with `id` not `studioId`; use `payload.id` to match album ownership.
+- [Deliverables module](deliverables-module.md) — full deliverables feature built; schema, routes, codegen, BeforeAfterSlider, studio + public gallery integration.

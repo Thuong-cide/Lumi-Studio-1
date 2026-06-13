@@ -205,6 +205,7 @@ export const ListAlbumsResponse = zod.object({
   "autoSendEnabled": zod.boolean(),
   "webhookSentAt": zod.string().nullish(),
   "webhookLastStatus": zod.string().nullish(),
+  "deliverableRootFolderUrl": zod.string().nullish(),
   "createdAt": zod.string(),
   "updatedAt": zod.string(),
   "photoCount": zod.number().optional(),
@@ -251,6 +252,7 @@ export const GetAlbumResponse = zod.object({
   "autoSendEnabled": zod.boolean(),
   "webhookSentAt": zod.string().nullish(),
   "webhookLastStatus": zod.string().nullish(),
+  "deliverableRootFolderUrl": zod.string().nullish(),
   "createdAt": zod.string(),
   "updatedAt": zod.string(),
   "photos": zod.array(zod.object({
@@ -507,6 +509,105 @@ export const SelectPhotoResponse = zod.object({
   "order": zod.number(),
   "createdAt": zod.string()
 }).optional()
+})
+
+
+/**
+ * @summary List deliverables for an album
+ */
+export const ListDeliverablesParams = zod.object({
+  "id": zod.coerce.string()
+})
+
+export const ListDeliverablesResponse = zod.object({
+  "deliverables": zod.array(zod.object({
+  "id": zod.string(),
+  "albumId": zod.string(),
+  "version": zod.number(),
+  "versionLabel": zod.string(),
+  "driveFolderUrl": zod.string(),
+  "note": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string(),
+  "photos": zod.array(zod.object({
+  "id": zod.string(),
+  "deliverableId": zod.string(),
+  "originalPhotoId": zod.string(),
+  "editedImageUrl": zod.string(),
+  "caption": zod.string().nullish(),
+  "originalPhoto": zod.object({
+  "id": zod.string(),
+  "albumId": zod.string(),
+  "driveFileId": zod.string(),
+  "filename": zod.string(),
+  "mimeType": zod.string(),
+  "thumbnailUrl": zod.string().nullish(),
+  "width": zod.number().nullish(),
+  "height": zod.number().nullish(),
+  "order": zod.number(),
+  "createdAt": zod.string()
+}).optional()
+})).optional()
+}))
+})
+
+
+/**
+ * @summary Create a new deliverable for an album
+ */
+export const CreateDeliverableParams = zod.object({
+  "id": zod.coerce.string()
+})
+
+export const CreateDeliverableBody = zod.object({
+  "versionFolderUrl": zod.string(),
+  "deliverableRootFolderUrl": zod.string().optional(),
+  "note": zod.string().optional(),
+  "photos": zod.array(zod.object({
+  "originalPhotoId": zod.string(),
+  "editedImageUrl": zod.string(),
+  "caption": zod.string().optional()
+}))
+})
+
+
+/**
+ * @summary Get deliverables for a public album
+ */
+export const GetPublicDeliverablesParams = zod.object({
+  "slug": zod.coerce.string()
+})
+
+export const GetPublicDeliverablesResponse = zod.object({
+  "deliverables": zod.array(zod.object({
+  "id": zod.string(),
+  "albumId": zod.string(),
+  "version": zod.number(),
+  "versionLabel": zod.string(),
+  "driveFolderUrl": zod.string(),
+  "note": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string(),
+  "photos": zod.array(zod.object({
+  "id": zod.string(),
+  "deliverableId": zod.string(),
+  "originalPhotoId": zod.string(),
+  "editedImageUrl": zod.string(),
+  "caption": zod.string().nullish(),
+  "originalPhoto": zod.object({
+  "id": zod.string(),
+  "albumId": zod.string(),
+  "driveFileId": zod.string(),
+  "filename": zod.string(),
+  "mimeType": zod.string(),
+  "thumbnailUrl": zod.string().nullish(),
+  "width": zod.number().nullish(),
+  "height": zod.number().nullish(),
+  "order": zod.number(),
+  "createdAt": zod.string()
+}).optional()
+})).optional()
+}))
 })
 
 

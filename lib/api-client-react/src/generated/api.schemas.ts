@@ -177,6 +177,8 @@ export interface Album {
   webhookSentAt?: string | null;
   /** @nullable */
   webhookLastStatus?: string | null;
+  /** @nullable */
+  deliverableRootFolderUrl?: string | null;
   createdAt: string;
   updatedAt: string;
   photoCount?: number;
@@ -258,6 +260,8 @@ export interface AlbumDetail {
   webhookSentAt?: string | null;
   /** @nullable */
   webhookLastStatus?: string | null;
+  /** @nullable */
+  deliverableRootFolderUrl?: string | null;
   createdAt: string;
   updatedAt: string;
   photos: Photo[];
@@ -329,6 +333,54 @@ export interface PhotoSelectionInput {
   customerName: string;
   note?: string;
   selected: boolean;
+}
+
+export interface DeliverablePhotoInput {
+  originalPhotoId: string;
+  editedImageUrl: string;
+  caption?: string;
+}
+
+export interface DeliverableInput {
+  versionFolderUrl: string;
+  deliverableRootFolderUrl?: string;
+  note?: string;
+  photos: DeliverablePhotoInput[];
+}
+
+export interface DeliverablePhoto {
+  id: string;
+  deliverableId: string;
+  originalPhotoId: string;
+  editedImageUrl: string;
+  /** @nullable */
+  caption?: string | null;
+  originalPhoto?: Photo;
+}
+
+export interface Deliverable {
+  id: string;
+  albumId: string;
+  version: number;
+  versionLabel: string;
+  driveFolderUrl: string;
+  /** @nullable */
+  note?: string | null;
+  createdAt: string;
+  updatedAt: string;
+  photos?: DeliverablePhoto[];
+}
+
+export interface DeliverableResult {
+  deliverable: Deliverable;
+}
+
+export interface DeliverablesListResult {
+  deliverables: Deliverable[];
+}
+
+export interface PublicDeliverablesResult {
+  deliverables: Deliverable[];
 }
 
 export type ListAdminStudiosParams = {

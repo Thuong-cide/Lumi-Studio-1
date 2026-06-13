@@ -11,6 +11,7 @@ import {
   useGetMe,
   getGetMeQueryKey,
 } from "@workspace/api-client-react";
+import { AlbumDeliverablesSection } from "@/components/album-deliverables-section";
 import { useLocation, useParams, Link } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
@@ -354,6 +355,12 @@ export default function AlbumDetail() {
           </Form>
         </CardContent>
       </Card>
+
+      <AlbumDeliverablesSection
+        albumId={albumId}
+        deliverableRootFolderUrl={album?.deliverableRootFolderUrl}
+        photos={photos}
+      />
     </div>
   );
 }

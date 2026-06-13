@@ -1,0 +1,171 @@
+Tôi muốn nâng cấp module "Giao file chỉnh sửa" (deliverables/revision_requests
+đã có) với 2 thay đổi: (1) cấu trúc Drive folder dùng 1 folder gốc duy nhất
+chia subfolder theo version, (2) thêm tính năng so sánh before/after từng ảnh
+bằng slider giữa 2 version.
+
+## 1. Thay đổi cấu trúc Drive folder
+
+Trước đây mỗi deliverable lưu 1 driveFolderUrl riêng. Giờ đổi thành:
+
+- Bảng `albums` thêm cột mới: `deliverableRootFolderUrl` (text, nullable)
+  — link tới 1 folder Drive gốc duy nhất của album, chứa các folder con
+  v1/, v2/, v3/...
+
+- Bảng `deliverables`: XOÁ cột `driveFolderUrl`, thay bằng `versionFolderName`
+  (text, not null, ví dụ "v1", "v2") — chỉ lưu tên folder con, không lưu URL
+  đầy đủ vì URL được suy ra từ deliverableRootFolderUrl + versionFolderName.
+
+Lưu ý: nếu deliverableRootFolderUrl là dạng URL Google Drive folder
+(`https://drive.google.com/drive/folders/FOLDER_ID`), subfolder không thể
+suy ra URL trực tiếp từ tên (Drive không hỗ trợ path-based URL). Vì vậy thực
+tế cần 1 trong 2 cách — chọn cách 2 vì đơn giản hơn:
+
+CÁCH ĐÃ CHỌN: Khi studio giao file (POST deliverables), studio nhập 2 thứ:
+- Lần đầu tiên (chưa có deliverableRootFolderUrl): nhập
+  `deliverableRootFolderUrl` (link folder gốc, lưu vào albums) +
+  `versionFolderUrl` (link folder con v1, lưu vào deliverables.driveFolderUrl
+  - GIỮ LẠI cột này, không xoá)
+- Lần sau: deliverableRootFolderUrl đã có sẵn (hiển thị read-only), chỉ cần
+  nhập `versionFolderUrl` cho version mới
+
+=> Tóm lại: GIỮ cột `deliverables.driveFolderUrl` (link folder con cụ thể của
+version đó), CHỈ THÊM cột `albums.deliverableRootFolderUrl` (link folder gốc,
+để hiển thị cho khách/studio biết tất cả nằm trong 1 folder lớn, và để
+studio tự tổ chức subfolder v1/, v2/... bên trong Drive theo ý họ).
+
+Thêm cột `deliverables.versionLabel` (text, not null, default dựa vào
+version number, ví dụ "v1", "v2" — để hiển thị UI, tách biệt với
+`version` integer dùng cho logic).
+
+## 2. So sánh Before/After từng ảnh (slider)
+
+Bảng mới `deliverable_photos`:
+- id: uuid, primary key
+- deliverableId: uuid, foreign key -> deliverables.id
+- originalPhotoId: uuid, foreign key -> photos.id (ảnh gốc khách đã chọn,
+  bảng `photos` đã có sẵn trong project)
+- editedImageUrl: text, not null (link ảnh đã chỉnh sửa - xem mục 3 về cách
+  lấy link này)
+- caption: text, nullable (ghi chú riêng cho ảnh này, optional)
+
+Mục đích: mỗi deliverable (version) có thể có nhiều `deliverable_photos`,
+mỗi cái map 1 ảnh gốc -> 1 ảnh đã sửa, để render slider before/after.
+
+## 3. Cách lấy editedImageUrl
+
+Vì ảnh nằm trong Drive folder (không upload trực tiếp lên app), cần cách để
+app hiển thị preview ảnh từ Drive:
+
+- Khi studio giao file (tạo deliverable mới), sau khi nhập
+  `versionFolderUrl`, thêm bước: studio paste danh sách link ảnh đã chỉnh sửa
+  (mỗi ảnh 1 link Drive file, dạng
+  `https://drive.google.com/file/d/FILE_ID/view`), kèm chọn ảnh gốc tương ứng
+  từ danh sách photos của album (dropdown hoặc grid để chọn).
+
+- App lưu vào deliverable_photos. Để hiển thị preview, convert link Drive
+  file sang dạng embed:
+  `https://drive.google.com/uc?export=view&id=FILE_ID` (extract FILE_ID từ
+  URL bằng regex).
+
+- Nếu project đã có sẵn cơ chế lấy Drive file (ví dụ Google Drive API
+  integration cho ảnh gốc), ưu tiên dùng lại cơ chế đó để lấy thumbnail/preview
+  thay vì cách trên — kiểm tra code hiện tại trước khi quyết định.
+
+## 4. OpenAPI spec (lib/api-spec/openapi.yaml)
+
+Mở rộng:
+
+- POST /studio/albums/{id}/deliverables
+  body: {
+    versionFolderUrl: string,
+    deliverableRootFolderUrl?: string, (chỉ cần lần đầu, optional các lần sau)
+    note?: string,
+    photos: Array<{ originalPhotoId: string, editedImageUrl: string,
+                    caption?: string }>
+  }
+  Logic: nếu album chưa có deliverableRootFolderUrl và body có
+  deliverableRootFolderUrl -> lưu vào albums. Tạo deliverable record + tạo
+  các deliverable_photos liên kết.
+
+- GET /studio/albums/{id}/deliverables
+  response: list deliverables kèm nested deliverable_photos (mỗi item gồm
+  originalPhoto info join từ bảng photos + editedImageUrl)
+
+- GET /public/albums/{slug}/deliverables (PUBLIC, cho khách xem)
+  response: tương tự, nhưng chỉ trả deliverable mới nhất + optionally 1 bản
+  trước đó (để so sánh)
+
+Sau khi sửa, chạy `pnpm --filter @workspace/api-spec run codegen`.
+
+## 5. Backend routes
+
+Implement theo spec mục 4. Validate:
+- originalPhotoId phải thuộc album đó (join check)
+- editedImageUrl và versionFolderUrl phải là URL hợp lệ (Zod url())
+- deliverableRootFolderUrl chỉ set 1 lần, nếu đã có mà body gửi khác -> bỏ
+  qua (không update, giữ giá trị cũ) để tránh nhầm folder gốc giữa các lần
+
+## 6. Frontend Studio: form giao file mở rộng
+
+Trong section "Giao file chỉnh sửa" (đã có), mở rộng:
+
+- Nếu album.deliverableRootFolderUrl chưa có: hiện input "Link folder Drive
+  gốc (chứa tất cả version)" - bắt buộc lần đầu
+- Nếu đã có: hiển thị read-only kèm link mở Drive
+
+- Input "Link folder Drive cho version này (vd: subfolder v2)"
+
+- Section "Ảnh đã chỉnh sửa" (lặp lại, có nút "+ Thêm ảnh"):
+  - Dropdown/grid chọn 1 ảnh gốc từ photos đã chọn của album
+  - Input "Link ảnh đã chỉnh sửa" (Drive file link)
+  - Textarea ghi chú (optional)
+  - Nút xoá dòng
+
+- Nút "Giao file cho khách" (giữ nguyên, gọi API với payload mới)
+
+## 7. Frontend: Before/After Slider Component
+
+Tạo component mới `BeforeAfterSlider`:
+- Props: { beforeImageUrl: string, afterImageUrl: string, caption?: string }
+- UI: 2 ảnh chồng lên nhau cùng kích thước, có 1 thanh kéo dọc (drag handle)
+  - kéo sang trái/phải để lộ dần ảnh before/after
+  - dùng CSS clip-path hoặc width % theo vị trí con trỏ
+  - Hỗ trợ touch (mobile) và mouse (desktop)
+- Hiển thị label "Trước" / "Sau" ở 2 góc
+
+Component này dùng ở 2 nơi:
+
+a) Trang Studio (album detail): mỗi deliverable_photo hiển thị 1 slider,
+   beforeImageUrl = ảnh gốc (lấy từ photos.url hoặc thumbnail có sẵn),
+   afterImageUrl = deliverable_photos.editedImageUrl
+
+b) Public Gallery (trang khách): khi album có deliverable, hiển thị section
+   "So sánh trước/sau" với slider cho từng ảnh đã chỉnh sửa. Nếu có >1
+   deliverable version, cho khách chọn dropdown "So sánh với version: [v1
+   / v2 / ...]" để đổi afterImageUrl theo version được chọn (beforeImageUrl
+   luôn là ảnh gốc cố định).
+
+## 8. So sánh giữa 2 version (không phải before=gốc)
+
+Ngoài so sánh gốc vs version, cho phép so sánh version A vs version B:
+
+- Trong dropdown ở mục 7b, thêm tuỳ chọn "So sánh: [Ảnh gốc / v1] vs [v2 /
+  v3 / ...]" — 2 dropdown độc lập để chọn beforeImageUrl và afterImageUrl
+  từ bất kỳ version nào (kể cả ảnh gốc)
+- Logic: match deliverable_photos theo originalPhotoId giữa 2 version để
+  đảm bảo so sánh đúng ảnh tương ứng
+
+## Thứ tự thực hiện
+1. Schema: albums.deliverableRootFolderUrl, deliverables.versionLabel,
+   bảng deliverable_photos + db push
+2. OpenAPI spec + codegen
+3. Backend routes (validate root folder chỉ set 1 lần, validate photo
+   ownership)
+4. Frontend: form giao file mở rộng (root folder + version folder + danh
+   sách ảnh before/after)
+5. Component BeforeAfterSlider (reusable, hỗ trợ touch)
+6. Tích hợp slider vào trang Studio + Public Gallery, hỗ trợ chọn version
+   để so sánh
+
+Giữ nguyên style code, naming convention, cấu trúc folder hiện tại. UI tiếng
+Việt.

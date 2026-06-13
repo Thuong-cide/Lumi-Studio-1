@@ -27,6 +27,8 @@ export interface AlbumDetail {
   webhookSentAt?: string | null;
   /** @nullable */
   webhookLastStatus?: string | null;
+  /** @nullable */
+  deliverableRootFolderUrl?: string | null;
   createdAt: string;
   updatedAt: string;
   photos: Photo[];

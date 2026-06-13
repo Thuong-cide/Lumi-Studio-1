@@ -1,15 +1,30 @@
 import { useState, useRef, useEffect } from "react";
-import { useGetPublicAlbum, getGetPublicAlbumQueryKey, useSelectPhoto } from "@workspace/api-client-react";
+import {
+  useGetPublicAlbum,
+  getGetPublicAlbumQueryKey,
+  useSelectPhoto,
+  useGetPublicDeliverables,
+  getGetPublicDeliverablesQueryKey,
+} from "@workspace/api-client-react";
 import { useParams } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Heart, X, Check, Loader2, ChevronLeft, ChevronRight, CheckCircle2 } from "lucide-react";
+import { Heart, X, Check, Loader2, ChevronLeft, ChevronRight, CheckCircle2, PackageCheck, ExternalLink } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "@/hooks/use-toast";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
+import { BeforeAfterSlider } from "@/components/before-after-slider";
+
+function toDriveProxyUrl(url: string): string {
+  if (!url) return "";
+  const m = url.match(/\/file\/d\/([a-zA-Z0-9_-]+)/) ?? url.match(/[?&]id=([a-zA-Z0-9_-]+)/);
+  if (m) return `/api/drive/proxy/${m[1]}`;
+  if (!url.includes("/") && !url.startsWith("http")) return `/api/drive/proxy/${url}`;
+  return url;
+}
 
 export default function PublicGallery() {
   const { slug } = useParams();
@@ -23,6 +38,7 @@ export default function PublicGallery() {
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
   const [isConfirming, setIsConfirming] = useState(false);
   const [confirmed, setConfirmed] = useState(false);
+  const [selectedDeliverableId, setSelectedDeliverableId] = useState<string | null>(null);
 
   // --- Zoom state ---
   const [scale, setScale] = useState(1);
@@ -55,6 +71,13 @@ export default function PublicGallery() {
 
   const queryClient = useQueryClient();
   const selectPhoto = useSelectPhoto();
+
+  const { data: deliverablesData } = useGetPublicDeliverables(slug || "", {
+    query: {
+      enabled: !!slug && isJoined,
+      queryKey: getGetPublicDeliverablesQueryKey(slug || ""),
+    },
+  });
 
   const { data: albumData, isLoading } = useGetPublicAlbum(slug || "", {
     query: {
@@ -511,6 +534,81 @@ export default function PublicGallery() {
           })}
         </div>
       </div>
+
+      {/* Deliverables Section */}
+      {(() => {
+        const deliverables = deliverablesData?.deliverables ?? [];
+        if (deliverables.length === 0) return null;
+        const activeId = selectedDeliverableId ?? deliverables[deliverables.length - 1].id;
+        const active = deliverables.find(d => d.id === activeId) ?? deliverables[deliverables.length - 1];
+        return (
+          <div className="max-w-7xl mx-auto px-4 py-8 border-t border-border">
+            <div className="flex items-center justify-between mb-5">
+              <h2 className="font-serif font-semibold text-xl flex items-center gap-2">
+                <PackageCheck className="h-5 w-5 text-primary" />
+                Ảnh đã chỉnh sửa
+              </h2>
+              {active.driveFolderUrl && (
+                <a
+                  href={active.driveFolderUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-1 text-xs text-primary hover:underline"
+                >
+                  Tải về từ Drive
+                  <ExternalLink className="h-3 w-3" />
+                </a>
+              )}
+            </div>
+
+            {deliverables.length > 1 && (
+              <div className="flex flex-wrap gap-2 mb-5">
+                {deliverables.map(d => (
+                  <button
+                    key={d.id}
+                    onClick={() => setSelectedDeliverableId(d.id)}
+                    className={`px-3 py-1 rounded-full text-sm font-medium border transition-all ${
+                      d.id === activeId
+                        ? "bg-primary text-primary-foreground border-primary"
+                        : "bg-background text-foreground border-border hover:border-primary hover:text-primary"
+                    }`}
+                  >
+                    {d.versionLabel}
+                    {d.note && <span className="ml-1.5 opacity-70 hidden sm:inline">— {d.note}</span>}
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {active.note && (
+              <p className="text-sm text-muted-foreground mb-4 bg-muted/40 rounded-lg px-4 py-2 border-l-2 border-primary/30">
+                {active.note}
+              </p>
+            )}
+
+            {(!active.photos || active.photos.length === 0) ? (
+              <p className="text-center text-muted-foreground py-8 text-sm">Chưa có ảnh nào trong phiên bản này.</p>
+            ) : (
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+                {active.photos.map(photo => {
+                  const origSrc = photo.originalPhoto
+                    ? `/api/drive/proxy/${photo.originalPhoto.driveFileId}`
+                    : "";
+                  const editSrc = toDriveProxyUrl(photo.editedImageUrl);
+                  return (
+                    <BeforeAfterSlider
+                      key={photo.id}
+                      beforeSrc={origSrc}
+                      afterSrc={editSrc}
+                      caption={photo.caption ?? undefined}
+                    />
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        );
+      })()}
 
       {/* Note Dialog */}
       <Dialog open={!!noteOpenFor} onOpenChange={(open) => !open && setNoteOpenFor(null)}>

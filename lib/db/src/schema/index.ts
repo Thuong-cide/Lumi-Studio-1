@@ -41,6 +41,7 @@ export const albumsTable = pgTable("albums", {
   autoSendEnabled: boolean("auto_send_enabled").notNull().default(true),
   webhookSentAt: timestamp("webhook_sent_at"),
   webhookLastStatus: text("webhook_last_status"),
+  deliverableRootFolderUrl: text("deliverable_root_folder_url"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow().$onUpdate(() => new Date()),
 }, (table) => [
@@ -95,4 +96,28 @@ export const selectionConfirmationsTable = pgTable("selection_confirmations", {
 }, (table) => [
   index("sel_confirmations_album_id_confirmed_at_idx").on(table.albumId, table.confirmedAt),
   index("sel_confirmations_customer_idx").on(table.customerName),
+]);
+
+export const deliverablesTable = pgTable("deliverables", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  albumId: uuid("album_id").notNull().references(() => albumsTable.id, { onDelete: "cascade" }),
+  version: integer("version").notNull(),
+  versionLabel: text("version_label").notNull(),
+  driveFolderUrl: text("drive_folder_url").notNull(),
+  note: text("note"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow().$onUpdate(() => new Date()),
+}, (table) => [
+  index("deliverables_album_id_version_idx").on(table.albumId, table.version),
+]);
+
+export const deliverablePhotosTable = pgTable("deliverable_photos", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  deliverableId: uuid("deliverable_id").notNull().references(() => deliverablesTable.id, { onDelete: "cascade" }),
+  originalPhotoId: uuid("original_photo_id").notNull().references(() => photosTable.id, { onDelete: "cascade" }),
+  editedImageUrl: text("edited_image_url").notNull(),
+  caption: text("caption"),
+}, (table) => [
+  index("deliverable_photos_deliverable_id_idx").on(table.deliverableId),
+  index("deliverable_photos_original_photo_id_idx").on(table.originalPhotoId),
 ]);

@@ -28,6 +28,9 @@ import type {
   AlbumUpdate,
   AlbumsListResult,
   ConfirmationsListResult,
+  DeliverableInput,
+  DeliverableResult,
+  DeliverablesListResult,
   ErrorResponse,
   GoogleAuthUrl,
   HealthStatus,
@@ -39,6 +42,7 @@ import type {
   PhotoSelectionInput,
   PhotosListResult,
   PublicAlbum,
+  PublicDeliverablesResult,
   RegisterInput,
   Selection,
   SelectionsListResult,
@@ -1980,4 +1984,230 @@ export const useSelectPhoto = <TError = ErrorType<unknown>,
       > => {
       return useMutation(getSelectPhotoMutationOptions(options));
     }
+
+export const getListDeliverablesUrl = (id: string,) => {
+
+
+
+
+  return `/api/studios/albums/${id}/deliverables`
+}
+
+/**
+ * @summary List deliverables for an album
+ */
+export const listDeliverables = async (id: string, options?: RequestInit): Promise<DeliverablesListResult> => {
+
+  return customFetch<DeliverablesListResult>(getListDeliverablesUrl(id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListDeliverablesQueryKey = (id: string,) => {
+    return [
+    `/api/studios/albums/${id}/deliverables`
+    ] as const;
+    }
+
+
+export const getListDeliverablesQueryOptions = <TData = Awaited<ReturnType<typeof listDeliverables>>, TError = ErrorType<unknown>>(id: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listDeliverables>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListDeliverablesQueryKey(id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listDeliverables>>> = ({ signal }) => listDeliverables(id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: !!(id), ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listDeliverables>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListDeliverablesQueryResult = NonNullable<Awaited<ReturnType<typeof listDeliverables>>>
+export type ListDeliverablesQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary List deliverables for an album
+ */
+
+export function useListDeliverables<TData = Awaited<ReturnType<typeof listDeliverables>>, TError = ErrorType<unknown>>(
+ id: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listDeliverables>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListDeliverablesQueryOptions(id,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getCreateDeliverableUrl = (id: string,) => {
+
+
+
+
+  return `/api/studios/albums/${id}/deliverables`
+}
+
+/**
+ * @summary Create a new deliverable for an album
+ */
+export const createDeliverable = async (id: string,
+    deliverableInput: DeliverableInput, options?: RequestInit): Promise<DeliverableResult> => {
+
+  return customFetch<DeliverableResult>(getCreateDeliverableUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      deliverableInput,)
+  }
+);}
+
+
+
+
+export const getCreateDeliverableMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createDeliverable>>, TError,{id: string;data: BodyType<DeliverableInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createDeliverable>>, TError,{id: string;data: BodyType<DeliverableInput>}, TContext> => {
+
+const mutationKey = ['createDeliverable'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createDeliverable>>, {id: string;data: BodyType<DeliverableInput>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  createDeliverable(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateDeliverableMutationResult = NonNullable<Awaited<ReturnType<typeof createDeliverable>>>
+    export type CreateDeliverableMutationBody = BodyType<DeliverableInput>
+    export type CreateDeliverableMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Create a new deliverable for an album
+ */
+export const useCreateDeliverable = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createDeliverable>>, TError,{id: string;data: BodyType<DeliverableInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createDeliverable>>,
+        TError,
+        {id: string;data: BodyType<DeliverableInput>},
+        TContext
+      > => {
+      return useMutation(getCreateDeliverableMutationOptions(options));
+    }
+
+export const getGetPublicDeliverablesUrl = (slug: string,) => {
+
+
+
+
+  return `/api/public/album/${slug}/deliverables`
+}
+
+/**
+ * @summary Get deliverables for a public album
+ */
+export const getPublicDeliverables = async (slug: string, options?: RequestInit): Promise<PublicDeliverablesResult> => {
+
+  return customFetch<PublicDeliverablesResult>(getGetPublicDeliverablesUrl(slug),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetPublicDeliverablesQueryKey = (slug: string,) => {
+    return [
+    `/api/public/album/${slug}/deliverables`
+    ] as const;
+    }
+
+
+export const getGetPublicDeliverablesQueryOptions = <TData = Awaited<ReturnType<typeof getPublicDeliverables>>, TError = ErrorType<unknown>>(slug: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getPublicDeliverables>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetPublicDeliverablesQueryKey(slug);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getPublicDeliverables>>> = ({ signal }) => getPublicDeliverables(slug, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: !!(slug), ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getPublicDeliverables>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetPublicDeliverablesQueryResult = NonNullable<Awaited<ReturnType<typeof getPublicDeliverables>>>
+export type GetPublicDeliverablesQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Get deliverables for a public album
+ */
+
+export function useGetPublicDeliverables<TData = Awaited<ReturnType<typeof getPublicDeliverables>>, TError = ErrorType<unknown>>(
+ slug: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getPublicDeliverables>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetPublicDeliverablesQueryOptions(slug,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
 
