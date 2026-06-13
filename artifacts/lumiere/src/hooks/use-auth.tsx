@@ -1,8 +1,16 @@
-import { createContext, useContext, ReactNode, useEffect, useRef } from "react";
+import { createContext, useContext, ReactNode, useEffect, useRef, useState } from "react";
 import { useGetMe, useLogout } from "@workspace/api-client-react";
 import { useLocation } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
-import { useToast } from "@/hooks/use-toast";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 export type MeUser = {
   id: string;
@@ -37,8 +45,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const logoutMutation = useLogout();
   const [, setLocation] = useLocation();
   const queryClient = useQueryClient();
-  const { toast } = useToast();
   const wasAuthenticated = useRef(false);
+  const [alertMessage, setAlertMessage] = useState<string | null>(null);
 
   useEffect(() => {
     if (user) {
@@ -53,17 +61,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const msg = apiError.data?.error;
     const status = apiError.status;
 
-    if (status === 403 && msg) {
-      toast({
-        title: "Phiên làm việc đã kết thúc",
-        description: msg,
-        variant: "destructive",
-      });
-    }
-
     wasAuthenticated.current = false;
+
+    if (status === 403 && msg) {
+      setAlertMessage(msg);
+    } else {
+      setLocation("/login");
+    }
+  }, [isError, error, setLocation]);
+
+  const handleAlertClose = () => {
+    setAlertMessage(null);
+    queryClient.clear();
     setLocation("/login");
-  }, [isError, error, setLocation, toast]);
+  };
 
   const logout = () => {
     logoutMutation.mutate(undefined, {
@@ -78,6 +89,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   return (
     <AuthContext.Provider value={{ user: user as MeData | undefined, isLoading, logout }}>
       {children}
+
+      <AlertDialog open={alertMessage !== null}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-destructive">
+              Phiên làm việc đã kết thúc
+            </AlertDialogTitle>
+            <AlertDialogDescription className="text-base">
+              {alertMessage}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogAction onClick={handleAlertClose}>
+              Đã hiểu
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </AuthContext.Provider>
   );
 }
