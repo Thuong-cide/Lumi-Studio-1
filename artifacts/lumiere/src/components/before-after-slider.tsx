@@ -22,7 +22,7 @@ export function BeforeAfterSlider({
   fill = false,
   onExpand,
 }: BeforeAfterSliderProps) {
-  const [position, setPosition] = useState(50);
+  const [position, setPosition] = useState(0);
   const containerRef = useRef<HTMLDivElement>(null);
   const dragging = useRef(false);
   const lastTapTime = useRef(0);
