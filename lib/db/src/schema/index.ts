@@ -38,7 +38,7 @@ export const albumsTable = pgTable("albums", {
   maxSelection: integer("max_selection").notNull().default(0),
   isPublic: boolean("is_public").notNull().default(true),
   customerPhone: text("customer_phone"),
-  autoSendEnabled: boolean("auto_send_enabled").notNull().default(false),
+  autoSendEnabled: boolean("auto_send_enabled").notNull().default(true),
   webhookSentAt: timestamp("webhook_sent_at"),
   webhookLastStatus: text("webhook_last_status"),
   createdAt: timestamp("created_at").notNull().defaultNow(),

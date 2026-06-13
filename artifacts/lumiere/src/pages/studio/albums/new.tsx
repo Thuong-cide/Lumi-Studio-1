@@ -29,7 +29,14 @@ const formSchema = z.object({
   maxSelection: z.coerce.number().min(0).default(0),
   allowDownload: z.boolean().default(false),
   allowNotes: z.boolean().default(true),
-  isPublic: z.boolean().default(false),
+  isPublic: z.boolean().default(true),
+  customerPhone: z
+    .string()
+    .refine((v) => v === "" || /^0\d{9}$/.test(v), {
+      message: "Số điện thoại phải có 10 số, bắt đầu bằng 0",
+    })
+    .optional(),
+  autoSendEnabled: z.boolean().default(true),
 });
 
 export default function NewAlbum() {
@@ -46,11 +53,12 @@ export default function NewAlbum() {
       maxSelection: me?.studio?.defaultMaxSelection ?? 0,
       allowDownload: false,
       allowNotes: true,
-      isPublic: false,
+      isPublic: true,
+      customerPhone: "",
+      autoSendEnabled: true,
     },
   });
 
-  // Cập nhật khi dữ liệu studio tải xong
   useEffect(() => {
     const defaultMax = me?.studio?.defaultMaxSelection ?? 0;
     if (defaultMax > 0 && !form.formState.isDirty) {
@@ -58,13 +66,38 @@ export default function NewAlbum() {
     }
   }, [me?.studio?.defaultMaxSelection]);
 
+  const hasWebhook = !!me?.studio?.n8nWebhookUrl;
+
   function onSubmit(values: z.infer<typeof formSchema>) {
     createAlbum.mutate(
-      { data: { ...values, maxSelection: Number(values.maxSelection) || 0 } },
+      {
+        data: {
+          ...values,
+          maxSelection: Number(values.maxSelection) || 0,
+          customerPhone: values.customerPhone || undefined,
+        },
+      },
       {
         onSuccess: (res) => {
           queryClient.invalidateQueries({ queryKey: getListAlbumsQueryKey() });
-          toast({ title: "Đã tạo album mới" });
+
+          const status = res.webhookStatus;
+          if (status === "sent") {
+            toast({ title: "Đã tạo album và đang gửi link Zalo cho khách..." });
+          } else if (status === "skipped_no_phone") {
+            toast({
+              title: "Album đã tạo.",
+              description: "Chưa gửi Zalo vì thiếu số điện thoại khách hàng.",
+            });
+          } else if (status === "skipped_no_webhook") {
+            toast({
+              title: "Album đã tạo.",
+              description: "Chưa gửi Zalo vì studio chưa cấu hình webhook n8n (vào Cài đặt để thêm).",
+            });
+          } else {
+            toast({ title: "Đã tạo album mới" });
+          }
+
           setLocation(`/dashboard/albums/${res.album.id}`);
         },
         onError: (err) => {
@@ -128,6 +161,58 @@ export default function NewAlbum() {
                         />
                       </FormControl>
                       <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+
+              <div className="space-y-4">
+                <h3 className="text-lg font-serif font-medium border-b pb-2">Thông báo Zalo cho khách</h3>
+
+                <FormField
+                  control={form.control}
+                  name="customerPhone"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Số điện thoại khách hàng</FormLabel>
+                      <FormControl>
+                        <Input
+                          placeholder="0987654321"
+                          maxLength={10}
+                          {...field}
+                        />
+                      </FormControl>
+                      <FormDescription>10 số, bắt đầu bằng 0. Điền để hệ thống gửi link Zalo tự động.</FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="autoSendEnabled"
+                  render={({ field }) => (
+                    <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4 shadow-sm bg-background/50">
+                      <div className="space-y-0.5">
+                        <FormLabel className="text-base">Tự động gửi qua Zalo khi tạo album</FormLabel>
+                        <FormDescription>
+                          Khi tạo album, hệ thống tự gửi link cho khách qua n8n nếu đã điền số điện thoại.
+                          {!hasWebhook && (
+                            <span className="block mt-1 text-amber-600 dark:text-amber-400">
+                              Chưa cấu hình n8n Webhook URL —{" "}
+                              <Link href="/dashboard/settings" className="underline underline-offset-2">
+                                Cài đặt ngay
+                              </Link>
+                            </span>
+                          )}
+                        </FormDescription>
+                      </div>
+                      <FormControl>
+                        <Switch
+                          checked={field.value}
+                          onCheckedChange={field.onChange}
+                        />
+                      </FormControl>
                     </FormItem>
                   )}
                 />

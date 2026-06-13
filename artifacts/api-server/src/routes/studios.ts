@@ -106,9 +106,16 @@ router.get("/studios/albums", async (req, res): Promise<void> => {
 router.post("/studios/albums", async (req, res): Promise<void> => {
   try {
     const payload = requireAuth(req, "STUDIO");
-    const { title, description, maxSelection, allowDownload, allowNotes, isPublic } = req.body;
+    const { title, description, maxSelection, allowDownload, allowNotes, isPublic, customerPhone, autoSendEnabled } = req.body;
     if (!title?.trim()) {
       res.status(400).json({ error: "Tên album không được trống" });
+      return;
+    }
+
+    // Validate phone if provided
+    const phone = customerPhone?.trim() || null;
+    if (phone && !/^0\d{9}$/.test(phone)) {
+      res.status(400).json({ error: "Số điện thoại không hợp lệ (phải có 10 số, bắt đầu bằng 0)" });
       return;
     }
 
@@ -116,8 +123,15 @@ router.post("/studios/albums", async (req, res): Promise<void> => {
     const [existing] = await db.select().from(albumsTable).where(eq(albumsTable.slug, slug));
     if (existing) slug = `${slug}-${Date.now()}`;
 
+    const [studio] = await db.select({
+      id: studiosTable.id,
+      googleDriveRefreshToken: studiosTable.googleDriveRefreshToken,
+      rootFolderId: studiosTable.rootFolderId,
+      n8nWebhookUrl: studiosTable.n8nWebhookUrl,
+      webhookSecret: studiosTable.webhookSecret,
+    }).from(studiosTable).where(eq(studiosTable.id, payload.id));
+
     let driveFolderId: string | undefined;
-    const [studio] = await db.select({ googleDriveRefreshToken: studiosTable.googleDriveRefreshToken, rootFolderId: studiosTable.rootFolderId }).from(studiosTable).where(eq(studiosTable.id, payload.id));
     if (studio?.googleDriveRefreshToken && studio.rootFolderId) {
       try {
         driveFolderId = await createFolder(studio.googleDriveRefreshToken, title.trim(), studio.rootFolderId);
@@ -126,6 +140,7 @@ router.post("/studios/albums", async (req, res): Promise<void> => {
       }
     }
 
+    const shouldAutoSend = autoSendEnabled !== false; // default true
     const [album] = await db.insert(albumsTable).values({
       studioId: payload.id,
       title: title.trim(),
@@ -135,10 +150,47 @@ router.post("/studios/albums", async (req, res): Promise<void> => {
       maxSelection: Number(maxSelection) || 0,
       allowDownload: Boolean(allowDownload),
       allowNotes: allowNotes !== false,
-      isPublic: isPublic !== false,
+      isPublic: isPublic !== false, // default true
+      customerPhone: phone,
+      autoSendEnabled: shouldAutoSend,
     }).returning();
 
-    res.status(201).json({ album: { ...album, photoCount: 0, selectionCount: 0, webhookSentAt: null, createdAt: album.createdAt.toISOString(), updatedAt: album.updatedAt.toISOString() } });
+    // Determine webhook status and fire async if conditions met
+    let webhookStatus: "sent" | "skipped_no_phone" | "skipped_no_webhook" | "failed" | undefined;
+
+    if (shouldAutoSend) {
+      if (!phone) {
+        webhookStatus = "skipped_no_phone";
+      } else if (!studio?.n8nWebhookUrl) {
+        webhookStatus = "skipped_no_webhook";
+      } else {
+        // Fire and forget — don't block response
+        sendAlbumWebhook(
+          { id: album.id, slug: album.slug, customerPhone: phone },
+          { id: studio.id ?? payload.id, n8nWebhookUrl: studio.n8nWebhookUrl, webhookSecret: studio.webhookSecret ?? null }
+        ).then(async (result) => {
+          await db.update(albumsTable).set({
+            webhookSentAt: new Date(),
+            webhookLastStatus: result.success ? "success" : "failed",
+          }).where(eq(albumsTable.id, album.id));
+        }).catch(err => {
+          logger.error(err, "[CREATE ALBUM WEBHOOK]");
+        });
+        webhookStatus = "sent";
+      }
+    }
+
+    res.status(201).json({
+      album: {
+        ...album,
+        photoCount: 0,
+        selectionCount: 0,
+        webhookSentAt: null,
+        createdAt: album.createdAt.toISOString(),
+        updatedAt: album.updatedAt.toISOString(),
+      },
+      ...(webhookStatus !== undefined ? { webhookStatus } : {}),
+    });
   } catch (e: unknown) {
     logger.error(e, "[CREATE ALBUM]");
     const msg = e instanceof Error ? e.message : "Lỗi server";

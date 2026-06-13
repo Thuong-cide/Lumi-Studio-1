@@ -1,0 +1,80 @@
+Tôi muốn thay đổi cách cấu hình "Thông báo Zalo cho khách" trong Lumière Studio
+như sau:
+
+## 1. Album mặc định là công khai (published) ngay khi tạo
+
+Hiện tại album có trạng thái draft/published và phải bấm "Publish" riêng.
+Đổi default status khi tạo album mới thành 'published' luôn (không cần bước
+publish riêng nữa). Nếu DB schema có default 'draft', đổi default thành
+'published'. Kiểm tra trang Public Gallery vẫn hoạt động đúng với album mới
+tạo (vì giờ nó published ngay).
+
+## 2. Thêm 2 field vào form TẠO ALBUM (không phải trang edit riêng)
+
+Trong form tạo album mới (nơi nhập tên album, v.v.), thêm 2 field:
+
+- Input "Số điện thoại khách hàng" (customerPhone)
+  - Validate: 10 số, bắt đầu bằng 0
+  - Không bắt buộc, nhưng cần điền để gửi Zalo được
+
+- Toggle "Tự động gửi qua Zalo khi publish album" (autoSendEnabled)
+  - **Default = TRUE** (đổi từ false thành true vì giờ album luôn published
+    ngay khi tạo)
+  - Label phụ: "Khi tạo album, hệ thống tự gửi link cho khách qua n8n nếu đã
+    điền số điện thoại"
+
+## 3. Logic gửi webhook khi TẠO album (không phải khi publish nữa)
+
+Vì album giờ published ngay khi tạo, logic auto-send cần chuyển từ route
+PUT /albums/:id/publish sang route POST /albums (tạo album mới):
+
+- Sau khi tạo album thành công, NẾU autoSendEnabled === true VÀ
+  customerPhone tồn tại và hợp lệ:
+  - Gọi sendAlbumWebhook(album, studio) (function đã có trong
+    services/webhookNotifier.ts)
+  - Lưu kết quả vào webhookSentAt + webhookLastStatus của album vừa tạo
+  - Không block response tạo album nếu webhook fail (log lỗi, trả về
+    success vẫn true cho việc tạo album)
+
+- Giữ nguyên endpoint PUT /albums/:id/publish nếu nơi khác trong code đang
+  dùng, nhưng phần auto-send trong đó không còn ý nghĩa thực tế nữa (có thể
+  giữ logic cũ phòng trường hợp album bị set về draft rồi publish lại).
+
+## 4. Trang chi tiết/edit album: GIỮ NGUYÊN nút gửi lại
+
+Trong trang xem chi tiết album (nơi đang có form "Thông báo Zalo cho khách"
+hiện tại), GIỮ LẠI:
+
+- Hiển thị customerPhone hiện tại (read-only hoặc editable, tuỳ ý)
+- Nút "Gửi link cho khách ngay" — vẫn gọi
+  POST /albums/:id/send-notification như cũ, để studio có thể gửi lại bất
+  cứ lúc nào (ví dụ khách chưa nhận được tin, hoặc gửi lại sau khi thêm ảnh
+  mới)
+- Hiển thị trạng thái webhookSentAt + webhookLastStatus (badge xanh/đỏ) như
+  hiện tại
+
+CÓ THỂ XÓA: toggle "Tự động gửi qua Zalo khi publish album" và nút "Lưu cài
+đặt" khỏi trang chi tiết album, vì giờ field này đã chuyển sang form tạo
+album. Nếu cần sửa lại autoSendEnabled sau khi tạo, có thể giữ toggle này ở
+trang edit nhưng không bắt buộc.
+
+## 5. Validate trước khi gửi
+
+Khi tạo album với autoSendEnabled=true nhưng customerPhone rỗng hoặc không
+hợp lệ → KHÔNG gọi webhook, không báo lỗi tạo album (tạo album vẫn thành
+công), chỉ đơn giản là không gửi. Có thể hiện toast nhẹ: "Album đã tạo. Chưa
+gửi Zalo vì thiếu số điện thoại khách hàng."
+
+Khi customerPhone hợp lệ nhưng studio chưa cấu hình n8nWebhookUrl trong
+Settings → tương tự, không gửi, toast: "Album đã tạo. Chưa gửi Zalo vì studio
+chưa cấu hình webhook n8n (vào Cài đặt để thêm)."
+
+## Thứ tự thực hiện
+1. Đổi default status album = 'published' (schema/route tạo album)
+2. Thêm 2 field vào form tạo album, default autoSendEnabled = true
+3. Sửa route POST /albums: tạo album + gọi sendAlbumWebhook nếu điều kiện đủ
+4. Trang chi tiết album: giữ nút "Gửi link cho khách ngay" + trạng thái, bỏ
+   phần cấu hình toggle/nút lưu (tuỳ chọn)
+5. Toast thông báo phù hợp theo từng trường hợp ở mục 5
+
+Giữ nguyên style code, naming convention, UI tiếng Việt theo project hiện tại.

@@ -680,6 +680,8 @@ components:
           type: string
         email:
           type: string
+        phone:
+          type: ["string", "null"]
         status:
           type: string
           enum: [PENDING, APPROVED, DISABLED]
@@ -800,6 +802,10 @@ components:
           type: boolean
         isPublic:
           type: boolean
+        customerPhone:
+          type: string
+        autoSendEnabled:
+          type: boolean
 
     AlbumUpdate:
       type: object
@@ -832,6 +838,9 @@ components:
       properties:
         album:
           $ref: "#/components/schemas/Album"
+        webhookStatus:
+          type: string
+          enum: [sent, skipped_no_phone, skipped_no_webhook, failed]
 
     AlbumDetailResult:
       type: object

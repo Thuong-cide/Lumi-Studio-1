@@ -13,4 +13,6 @@ export interface AlbumInput {
   allowDownload?: boolean;
   allowNotes?: boolean;
   isPublic?: boolean;
+  customerPhone?: string;
+  autoSendEnabled?: boolean;
 }

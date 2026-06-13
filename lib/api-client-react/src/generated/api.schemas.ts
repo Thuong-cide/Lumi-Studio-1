@@ -111,6 +111,8 @@ export interface Studio {
   id: string;
   name: string;
   email: string;
+  /** @nullable */
+  phone?: string | null;
   status: StudioStatus;
   googleDriveConnected?: boolean;
   createdAt: string;
@@ -188,6 +190,8 @@ export interface AlbumInput {
   allowDownload?: boolean;
   allowNotes?: boolean;
   isPublic?: boolean;
+  customerPhone?: string;
+  autoSendEnabled?: boolean;
 }
 
 export interface AlbumUpdate {
@@ -203,8 +207,19 @@ export interface AlbumsListResult {
   albums: Album[];
 }
 
+export type AlbumResultWebhookStatus = typeof AlbumResultWebhookStatus[keyof typeof AlbumResultWebhookStatus];
+
+
+export const AlbumResultWebhookStatus = {
+  sent: 'sent',
+  skipped_no_phone: 'skipped_no_phone',
+  skipped_no_webhook: 'skipped_no_webhook',
+  failed: 'failed',
+} as const;
+
 export interface AlbumResult {
   album: Album;
+  webhookStatus?: AlbumResultWebhookStatus;
 }
 
 export interface Photo {

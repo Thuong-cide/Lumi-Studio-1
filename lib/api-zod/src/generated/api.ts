@@ -108,6 +108,7 @@ export const ListAdminStudiosResponse = zod.object({
   "id": zod.string(),
   "name": zod.string(),
   "email": zod.string(),
+  "phone": zod.string().nullish(),
   "status": zod.enum(['PENDING', 'APPROVED', 'DISABLED']),
   "googleDriveConnected": zod.boolean().optional(),
   "createdAt": zod.string(),
@@ -133,6 +134,7 @@ export const UpdateStudioStatusResponse = zod.object({
   "id": zod.string(),
   "name": zod.string(),
   "email": zod.string(),
+  "phone": zod.string().nullish(),
   "status": zod.enum(['PENDING', 'APPROVED', 'DISABLED']),
   "googleDriveConnected": zod.boolean().optional(),
   "createdAt": zod.string(),
@@ -220,7 +222,9 @@ export const CreateAlbumBody = zod.object({
   "maxSelection": zod.number().optional(),
   "allowDownload": zod.boolean().optional(),
   "allowNotes": zod.boolean().optional(),
-  "isPublic": zod.boolean().optional()
+  "isPublic": zod.boolean().optional(),
+  "customerPhone": zod.string().optional(),
+  "autoSendEnabled": zod.boolean().optional()
 })
 
 

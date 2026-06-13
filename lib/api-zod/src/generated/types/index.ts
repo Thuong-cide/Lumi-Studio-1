@@ -13,6 +13,7 @@ export * from './albumDetailResult';
 export * from './albumInput';
 export * from './albumNotificationUpdate';
 export * from './albumResult';
+export * from './albumResultWebhookStatus';
 export * from './albumsListResult';
 export * from './albumUpdate';
 export * from './authStudio';

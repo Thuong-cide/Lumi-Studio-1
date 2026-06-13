@@ -11,6 +11,8 @@ export interface Studio {
   id: string;
   name: string;
   email: string;
+  /** @nullable */
+  phone?: string | null;
   status: StudioStatus;
   googleDriveConnected?: boolean;
   createdAt: string;

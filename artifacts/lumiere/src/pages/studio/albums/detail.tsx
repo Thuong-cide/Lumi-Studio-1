@@ -16,7 +16,6 @@ import { useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { toast } from "@/hooks/use-toast";
 import { ArrowLeft, Upload, Trash2, Users, Link as LinkIcon, Send, Globe, CheckCircle2, XCircle, MessageCircle } from "lucide-react";
@@ -35,13 +34,12 @@ import {
   FormDescription,
 } from "@/components/ui/form";
 
-const notifSchema = z.object({
+const phoneSchema = z.object({
   customerPhone: z
     .string()
     .refine((v) => v === "" || /^0\d{9}$/.test(v), {
       message: "Số điện thoại phải có 10 số, bắt đầu bằng 0",
     }),
-  autoSendEnabled: z.boolean(),
 });
 
 export default function AlbumDetail() {
@@ -68,11 +66,10 @@ export default function AlbumDetail() {
   const photos = photosData?.photos || [];
   const hasWebhook = !!me?.studio?.n8nWebhookUrl;
 
-  const notifForm = useForm<z.infer<typeof notifSchema>>({
-    resolver: zodResolver(notifSchema),
+  const phoneForm = useForm<z.infer<typeof phoneSchema>>({
+    resolver: zodResolver(phoneSchema),
     values: {
       customerPhone: album?.customerPhone ?? "",
-      autoSendEnabled: album?.autoSendEnabled ?? false,
     },
   });
 
@@ -108,13 +105,13 @@ export default function AlbumDetail() {
     );
   };
 
-  const handleSaveNotif = (values: z.infer<typeof notifSchema>) => {
+  const handleSavePhone = (values: z.infer<typeof phoneSchema>) => {
     updateNotif.mutate(
-      { id: albumId, data: { customerPhone: values.customerPhone || undefined, autoSendEnabled: values.autoSendEnabled } },
+      { id: albumId, data: { customerPhone: values.customerPhone || undefined } },
       {
         onSuccess: () => {
           queryClient.invalidateQueries({ queryKey: getGetAlbumQueryKey(albumId) });
-          toast({ title: "Đã lưu cài đặt thông báo" });
+          toast({ title: "Đã lưu số điện thoại" });
         },
         onError: (err) => {
           toast({ title: "Lỗi", description: (err.data as { error?: string })?.error || err.message, variant: "destructive" });
@@ -146,7 +143,7 @@ export default function AlbumDetail() {
       {
         onSuccess: () => {
           queryClient.invalidateQueries({ queryKey: getGetAlbumQueryKey(albumId) });
-          toast({ title: "Album đã được công khai" + (album?.autoSendEnabled ? " và đang gửi thông báo cho khách..." : "") });
+          toast({ title: "Album đã được công khai" });
         },
         onError: (err) => {
           toast({ title: "Lỗi", description: (err.data as { error?: string })?.error || err.message, variant: "destructive" });
@@ -159,7 +156,8 @@ export default function AlbumDetail() {
   if (!album) return <div className="p-8 font-serif text-xl">Không tìm thấy album</div>;
 
   const webhookSentAt = album.webhookSentAt ? new Date(album.webhookSentAt) : null;
-  const canSend = hasWebhook && !!notifForm.watch("customerPhone");
+  const currentPhone = phoneForm.watch("customerPhone");
+  const canSend = hasWebhook && !!currentPhone;
 
   return (
     <div className="space-y-8 pb-16">
@@ -284,7 +282,7 @@ export default function AlbumDetail() {
             Thông báo Zalo cho khách
           </CardTitle>
         </CardHeader>
-        <CardContent className="space-y-6">
+        <CardContent className="space-y-5">
           {!hasWebhook && (
             <div className="text-sm text-muted-foreground bg-muted/50 border rounded-lg p-3">
               Bạn chưa cấu hình n8n Webhook URL.{" "}
@@ -312,10 +310,10 @@ export default function AlbumDetail() {
             </div>
           )}
 
-          <Form {...notifForm}>
-            <form onSubmit={notifForm.handleSubmit(handleSaveNotif)} className="space-y-4">
+          <Form {...phoneForm}>
+            <form onSubmit={phoneForm.handleSubmit(handleSavePhone)} className="space-y-4">
               <FormField
-                control={notifForm.control}
+                control={phoneForm.control}
                 name="customerPhone"
                 render={({ field }) => (
                   <FormItem>
@@ -333,42 +331,20 @@ export default function AlbumDetail() {
                 )}
               />
 
-              <FormField
-                control={notifForm.control}
-                name="autoSendEnabled"
-                render={({ field }) => (
-                  <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4 shadow-sm bg-background/50">
-                    <div className="space-y-0.5">
-                      <FormLabel className="text-base">Tự động gửi qua Zalo khi publish album</FormLabel>
-                      <FormDescription>
-                        Khi bấm "Công khai album", hệ thống tự gửi link cho khách qua n8n.
-                      </FormDescription>
-                    </div>
-                    <FormControl>
-                      <Switch
-                        checked={field.value}
-                        onCheckedChange={field.onChange}
-                        disabled={!hasWebhook}
-                      />
-                    </FormControl>
-                  </FormItem>
-                )}
-              />
-
-              <div className="flex items-center gap-3 pt-2">
+              <div className="flex items-center gap-3">
                 <Button
                   type="submit"
                   variant="outline"
                   disabled={updateNotif.isPending}
                 >
-                  {updateNotif.isPending ? "Đang lưu..." : "Lưu cài đặt"}
+                  {updateNotif.isPending ? "Đang lưu..." : "Lưu số điện thoại"}
                 </Button>
                 <Button
                   type="button"
                   className="bg-primary text-primary-foreground hover:bg-primary/90"
                   onClick={handleSendNow}
                   disabled={!canSend || sendNotif.isPending}
-                  title={!hasWebhook ? "Chưa cấu hình n8n Webhook URL" : !notifForm.watch("customerPhone") ? "Chưa nhập số điện thoại" : ""}
+                  title={!hasWebhook ? "Chưa cấu hình n8n Webhook URL" : !currentPhone ? "Chưa nhập số điện thoại" : ""}
                 >
                   <Send className="mr-2 h-4 w-4" />
                   {sendNotif.isPending ? "Đang gửi..." : "Gửi link cho khách ngay"}

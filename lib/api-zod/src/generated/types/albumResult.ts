@@ -6,7 +6,9 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { Album } from './album';
+import type { AlbumResultWebhookStatus } from './albumResultWebhookStatus';
 
 export interface AlbumResult {
   album: Album;
+  webhookStatus?: AlbumResultWebhookStatus;
 }
