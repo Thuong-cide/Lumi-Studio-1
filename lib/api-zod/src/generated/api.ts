@@ -68,7 +68,9 @@ export const GetMeResponse = zod.object({
   "name": zod.string(),
   "email": zod.string(),
   "googleDriveConnected": zod.boolean(),
-  "rootFolderId": zod.string().nullish()
+  "rootFolderId": zod.string().nullish(),
+  "defaultMaxSelection": zod.number().optional(),
+  "n8nWebhookUrl": zod.string().nullish()
 }).optional()
 })
 
@@ -158,10 +160,25 @@ export const DeleteStudioResponse = zod.object({
  */
 export const UpdateStudioSettingsBody = zod.object({
   "name": zod.string().optional(),
-  "password": zod.string().optional()
+  "password": zod.string().optional(),
+  "defaultMaxSelection": zod.number().optional()
 })
 
 export const UpdateStudioSettingsResponse = zod.object({
+  "success": zod.boolean(),
+  "message": zod.string().optional()
+})
+
+
+/**
+ * @summary Update n8n webhook configuration
+ */
+export const UpdateWebhookSettingsBody = zod.object({
+  "n8nWebhookUrl": zod.string(),
+  "webhookSecret": zod.string().optional()
+})
+
+export const UpdateWebhookSettingsResponse = zod.object({
   "success": zod.boolean(),
   "message": zod.string().optional()
 })
@@ -182,6 +199,10 @@ export const ListAlbumsResponse = zod.object({
   "allowNotes": zod.boolean(),
   "maxSelection": zod.number(),
   "isPublic": zod.boolean(),
+  "customerPhone": zod.string().nullish(),
+  "autoSendEnabled": zod.boolean(),
+  "webhookSentAt": zod.string().nullish(),
+  "webhookLastStatus": zod.string().nullish(),
   "createdAt": zod.string(),
   "updatedAt": zod.string(),
   "photoCount": zod.number().optional(),
@@ -222,6 +243,10 @@ export const GetAlbumResponse = zod.object({
   "allowNotes": zod.boolean(),
   "maxSelection": zod.number(),
   "isPublic": zod.boolean(),
+  "customerPhone": zod.string().nullish(),
+  "autoSendEnabled": zod.boolean(),
+  "webhookSentAt": zod.string().nullish(),
+  "webhookLastStatus": zod.string().nullish(),
   "createdAt": zod.string(),
   "updatedAt": zod.string(),
   "photos": zod.array(zod.object({
@@ -273,6 +298,70 @@ export const DeleteAlbumParams = zod.object({
 export const DeleteAlbumResponse = zod.object({
   "success": zod.boolean(),
   "message": zod.string().optional()
+})
+
+
+/**
+ * @summary Update album notification settings
+ */
+export const UpdateAlbumNotificationParams = zod.object({
+  "id": zod.coerce.string()
+})
+
+export const UpdateAlbumNotificationBody = zod.object({
+  "customerPhone": zod.string().optional(),
+  "autoSendEnabled": zod.boolean().optional()
+})
+
+export const UpdateAlbumNotificationResponse = zod.object({
+  "success": zod.boolean(),
+  "message": zod.string().optional()
+})
+
+
+/**
+ * @summary Send album link to customer via webhook
+ */
+export const SendAlbumNotificationParams = zod.object({
+  "id": zod.coerce.string()
+})
+
+export const SendAlbumNotificationResponse = zod.object({
+  "success": zod.boolean(),
+  "error": zod.string().optional()
+})
+
+
+/**
+ * @summary Publish album and optionally send webhook notification
+ */
+export const PublishAlbumParams = zod.object({
+  "id": zod.coerce.string()
+})
+
+export const PublishAlbumResponse = zod.object({
+  "success": zod.boolean(),
+  "message": zod.string().optional()
+})
+
+
+/**
+ * @summary List album selection confirmations
+ */
+export const ListAlbumConfirmationsParams = zod.object({
+  "id": zod.coerce.string()
+})
+
+export const ListAlbumConfirmationsResponse = zod.object({
+  "confirmations": zod.array(zod.object({
+  "id": zod.string(),
+  "customerName": zod.string(),
+  "photoCount": zod.number(),
+  "snapshot": zod.array(zod.object({
+
+}).passthrough()),
+  "confirmedAt": zod.string()
+}))
 })
 
 

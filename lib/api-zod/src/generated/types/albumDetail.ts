@@ -20,6 +20,13 @@ export interface AlbumDetail {
   allowNotes: boolean;
   maxSelection: number;
   isPublic: boolean;
+  /** @nullable */
+  customerPhone?: string | null;
+  autoSendEnabled: boolean;
+  /** @nullable */
+  webhookSentAt?: string | null;
+  /** @nullable */
+  webhookLastStatus?: string | null;
   createdAt: string;
   updatedAt: string;
   photos: Photo[];

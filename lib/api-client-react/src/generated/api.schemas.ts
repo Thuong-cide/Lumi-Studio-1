@@ -18,6 +18,11 @@ export interface SuccessResponse {
   message?: string;
 }
 
+export interface NotificationResult {
+  success: boolean;
+  error?: string;
+}
+
 export interface LoginInput {
   email: string;
   password: string;
@@ -70,6 +75,9 @@ export interface AuthStudio {
   googleDriveConnected: boolean;
   /** @nullable */
   rootFolderId?: string | null;
+  defaultMaxSelection?: number;
+  /** @nullable */
+  n8nWebhookUrl?: string | null;
 }
 
 export interface MeResult {
@@ -134,6 +142,17 @@ export interface StudioStatusUpdate {
 export interface StudioSettingsUpdate {
   name?: string;
   password?: string;
+  defaultMaxSelection?: number;
+}
+
+export interface WebhookSettingsUpdate {
+  n8nWebhookUrl: string;
+  webhookSecret?: string;
+}
+
+export interface AlbumNotificationUpdate {
+  customerPhone?: string;
+  autoSendEnabled?: boolean;
 }
 
 export interface Album {
@@ -149,6 +168,13 @@ export interface Album {
   allowNotes: boolean;
   maxSelection: number;
   isPublic: boolean;
+  /** @nullable */
+  customerPhone?: string | null;
+  autoSendEnabled: boolean;
+  /** @nullable */
+  webhookSentAt?: string | null;
+  /** @nullable */
+  webhookLastStatus?: string | null;
   createdAt: string;
   updatedAt: string;
   photoCount?: number;
@@ -210,6 +236,13 @@ export interface AlbumDetail {
   allowNotes: boolean;
   maxSelection: number;
   isPublic: boolean;
+  /** @nullable */
+  customerPhone?: string | null;
+  autoSendEnabled: boolean;
+  /** @nullable */
+  webhookSentAt?: string | null;
+  /** @nullable */
+  webhookLastStatus?: string | null;
   createdAt: string;
   updatedAt: string;
   photos: Photo[];
@@ -218,6 +251,20 @@ export interface AlbumDetail {
 
 export interface AlbumDetailResult {
   album: AlbumDetail;
+}
+
+export type ConfirmationSnapshotItem = { [key: string]: unknown };
+
+export interface Confirmation {
+  id: string;
+  customerName: string;
+  photoCount: number;
+  snapshot: ConfirmationSnapshotItem[];
+  confirmedAt: string;
+}
+
+export interface ConfirmationsListResult {
+  confirmations: Confirmation[];
 }
 
 export interface PhotosListResult {

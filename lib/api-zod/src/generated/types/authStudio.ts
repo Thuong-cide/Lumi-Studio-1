@@ -14,4 +14,6 @@ export interface AuthStudio {
   /** @nullable */
   rootFolderId?: string | null;
   defaultMaxSelection?: number;
+  /** @nullable */
+  n8nWebhookUrl?: string | null;
 }

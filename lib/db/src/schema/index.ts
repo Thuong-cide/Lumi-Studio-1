@@ -18,6 +18,8 @@ export const studiosTable = pgTable("studios", {
   googleDriveRefreshToken: text("google_drive_refresh_token"),
   rootFolderId: text("root_folder_id"),
   defaultMaxSelection: integer("default_max_selection").notNull().default(0),
+  n8nWebhookUrl: text("n8n_webhook_url"),
+  webhookSecret: text("webhook_secret"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow().$onUpdate(() => new Date()),
 }, (table) => [
@@ -35,6 +37,10 @@ export const albumsTable = pgTable("albums", {
   allowNotes: boolean("allow_notes").notNull().default(true),
   maxSelection: integer("max_selection").notNull().default(0),
   isPublic: boolean("is_public").notNull().default(true),
+  customerPhone: text("customer_phone"),
+  autoSendEnabled: boolean("auto_send_enabled").notNull().default(false),
+  webhookSentAt: timestamp("webhook_sent_at"),
+  webhookLastStatus: text("webhook_last_status"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow().$onUpdate(() => new Date()),
 }, (table) => [

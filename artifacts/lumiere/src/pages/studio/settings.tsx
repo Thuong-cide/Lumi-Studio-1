@@ -1,7 +1,12 @@
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { useUpdateStudioSettings, useGetMe, getGetMeQueryKey } from "@workspace/api-client-react";
+import {
+  useUpdateStudioSettings,
+  useUpdateWebhookSettings,
+  useGetMe,
+  getGetMeQueryKey,
+} from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import {
@@ -11,42 +16,53 @@ import {
   FormItem,
   FormLabel,
   FormMessage,
-  FormDescription
+  FormDescription,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { toast } from "@/hooks/use-toast";
 import { useEffect } from "react";
 import { Link } from "wouter";
+import { CheckCircle2 } from "lucide-react";
 
-const formSchema = z.object({
+const profileSchema = z.object({
   name: z.string().min(2, "Tên Studio phải có ít nhất 2 ký tự"),
   password: z.string().optional(),
   defaultMaxSelection: z.coerce.number().min(0).default(0),
+});
+
+const webhookSchema = z.object({
+  n8nWebhookUrl: z.string().url("Vui lòng nhập URL hợp lệ (bắt đầu bằng http/https)"),
+  webhookSecret: z.string().optional(),
 });
 
 export default function StudioSettings() {
   const queryClient = useQueryClient();
   const { data: me } = useGetMe({ query: { queryKey: getGetMeQueryKey() } });
   const updateSettings = useUpdateStudioSettings();
+  const updateWebhook = useUpdateWebhookSettings();
 
-  const form = useForm<z.infer<typeof formSchema>>({
-    resolver: zodResolver(formSchema),
-    defaultValues: {
-      name: "",
-      password: "",
-      defaultMaxSelection: 0,
-    },
+  const profileForm = useForm<z.infer<typeof profileSchema>>({
+    resolver: zodResolver(profileSchema),
+    defaultValues: { name: "", password: "", defaultMaxSelection: 0 },
+  });
+
+  const webhookForm = useForm<z.infer<typeof webhookSchema>>({
+    resolver: zodResolver(webhookSchema),
+    defaultValues: { n8nWebhookUrl: "", webhookSecret: "" },
   });
 
   useEffect(() => {
     if (me?.studio) {
-      form.setValue("name", me.studio.name);
-      form.setValue("defaultMaxSelection", me.studio.defaultMaxSelection ?? 0);
+      profileForm.setValue("name", me.studio.name);
+      profileForm.setValue("defaultMaxSelection", me.studio.defaultMaxSelection ?? 0);
+      if (me.studio.n8nWebhookUrl) {
+        webhookForm.setValue("n8nWebhookUrl", me.studio.n8nWebhookUrl);
+      }
     }
-  }, [me, form]);
+  }, [me]);
 
-  function onSubmit(values: z.infer<typeof formSchema>) {
+  function onSubmitProfile(values: z.infer<typeof profileSchema>) {
     const payload: { name?: string; password?: string; defaultMaxSelection?: number } = {
       name: values.name,
       defaultMaxSelection: values.defaultMaxSelection,
@@ -54,19 +70,38 @@ export default function StudioSettings() {
     if (values.password && values.password.trim() !== "") {
       payload.password = values.password;
     }
-
     updateSettings.mutate(
       { data: payload },
       {
         onSuccess: () => {
           queryClient.invalidateQueries({ queryKey: getGetMeQueryKey() });
           toast({ title: "Đã cập nhật cài đặt" });
-          form.setValue("password", ""); // Clear password field after success
+          profileForm.setValue("password", "");
         },
         onError: (err) => {
           toast({
             title: "Lỗi",
-            description: (err.data as { error?: string })?.error || err.message || "Không thể cập nhật cài đặt",
+            description: (err.data as { error?: string })?.error || err.message,
+            variant: "destructive",
+          });
+        },
+      }
+    );
+  }
+
+  function onSubmitWebhook(values: z.infer<typeof webhookSchema>) {
+    updateWebhook.mutate(
+      { data: { n8nWebhookUrl: values.n8nWebhookUrl, webhookSecret: values.webhookSecret || undefined } },
+      {
+        onSuccess: () => {
+          queryClient.invalidateQueries({ queryKey: getGetMeQueryKey() });
+          toast({ title: "Đã lưu cấu hình Webhook" });
+          webhookForm.setValue("webhookSecret", "");
+        },
+        onError: (err) => {
+          toast({
+            title: "Lỗi",
+            description: (err.data as { error?: string })?.error || err.message,
             variant: "destructive",
           });
         },
@@ -100,8 +135,8 @@ export default function StudioSettings() {
                 <div>
                   <h4 className="font-medium text-foreground">Google Drive</h4>
                   <p className="text-sm text-muted-foreground">
-                    {me?.studio?.googleDriveConnected 
-                      ? "Đã kết nối. Ảnh của bạn sẽ được lưu tại đây." 
+                    {me?.studio?.googleDriveConnected
+                      ? "Đã kết nối. Ảnh của bạn sẽ được lưu tại đây."
                       : "Chưa kết nối. Yêu cầu kết nối để lưu trữ ảnh."}
                   </p>
                 </div>
@@ -117,14 +152,90 @@ export default function StudioSettings() {
 
         <Card>
           <CardHeader>
+            <CardTitle className="font-serif">Cấu hình Webhook n8n</CardTitle>
+            <CardDescription>
+              Tự động gửi link album cho khách qua Zalo bằng cách kết nối với n8n workflow của bạn.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {me?.studio?.n8nWebhookUrl && (
+              <div className="mb-4 flex items-center gap-2 text-sm text-success bg-success/10 border border-success/20 rounded-lg px-3 py-2">
+                <CheckCircle2 className="h-4 w-4 shrink-0" />
+                <span>Đã cấu hình — webhook đang hoạt động</span>
+              </div>
+            )}
+            <Form {...webhookForm}>
+              <form onSubmit={webhookForm.handleSubmit(onSubmitWebhook)} className="space-y-4">
+                <FormField
+                  control={webhookForm.control}
+                  name="n8nWebhookUrl"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>n8n Webhook URL</FormLabel>
+                      <FormControl>
+                        <Input
+                          placeholder="https://your-n8n.example.com/webhook/lumiere-notify"
+                          {...field}
+                        />
+                      </FormControl>
+                      <FormDescription>
+                        Dán URL webhook từ workflow n8n của bạn. Xem{" "}
+                        <a
+                          href="/docs/zalo-webhook-setup"
+                          target="_blank"
+                          className="underline underline-offset-2"
+                        >
+                          hướng dẫn thiết lập
+                        </a>.
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={webhookForm.control}
+                  name="webhookSecret"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Webhook Secret <span className="text-muted-foreground font-normal">(tuỳ chọn)</span></FormLabel>
+                      <FormControl>
+                        <Input
+                          type="password"
+                          placeholder="Để trống nếu không cần xác thực HMAC"
+                          {...field}
+                        />
+                      </FormControl>
+                      <FormDescription>
+                        Nếu điền, mỗi request sẽ có header <code className="text-xs bg-muted px-1 rounded">X-Lumiere-Signature</code> để n8n verify.
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <div className="flex justify-end pt-2">
+                  <Button
+                    type="submit"
+                    className="bg-primary text-primary-foreground hover:bg-primary/90"
+                    disabled={updateWebhook.isPending}
+                  >
+                    {updateWebhook.isPending ? "Đang lưu..." : "Lưu cấu hình"}
+                  </Button>
+                </div>
+              </form>
+            </Form>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
             <CardTitle className="font-serif">Hồ sơ Studio</CardTitle>
             <CardDescription>Cập nhật thông tin hiển thị của bạn</CardDescription>
           </CardHeader>
           <CardContent>
-            <Form {...form}>
-              <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+            <Form {...profileForm}>
+              <form onSubmit={profileForm.handleSubmit(onSubmitProfile)} className="space-y-6">
                 <FormField
-                  control={form.control}
+                  control={profileForm.control}
                   name="name"
                   render={({ field }) => (
                     <FormItem>
@@ -136,9 +247,9 @@ export default function StudioSettings() {
                     </FormItem>
                   )}
                 />
-                
+
                 <FormField
-                  control={form.control}
+                  control={profileForm.control}
                   name="defaultMaxSelection"
                   render={({ field }) => (
                     <FormItem>
@@ -155,7 +266,7 @@ export default function StudioSettings() {
                 />
 
                 <FormField
-                  control={form.control}
+                  control={profileForm.control}
                   name="password"
                   render={({ field }) => (
                     <FormItem>
@@ -163,17 +274,15 @@ export default function StudioSettings() {
                       <FormControl>
                         <Input type="password" placeholder="Bỏ trống nếu không muốn đổi" {...field} />
                       </FormControl>
-                      <FormDescription>
-                        Mật khẩu phải có ít nhất 6 ký tự
-                      </FormDescription>
+                      <FormDescription>Mật khẩu phải có ít nhất 6 ký tự</FormDescription>
                       <FormMessage />
                     </FormItem>
                   )}
                 />
 
                 <div className="flex justify-end pt-4">
-                  <Button 
-                    type="submit" 
+                  <Button
+                    type="submit"
                     className="bg-primary text-primary-foreground hover:bg-primary/90"
                     disabled={updateSettings.isPending}
                   >

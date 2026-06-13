@@ -226,6 +226,25 @@ paths:
               schema:
                 $ref: "#/components/schemas/SuccessResponse"
 
+  /studios/settings/webhook:
+    patch:
+      operationId: updateWebhookSettings
+      tags: [studios]
+      summary: Update n8n webhook configuration
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WebhookSettingsUpdate"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+
   /studios/albums:
     get:
       operationId: listAlbums
@@ -314,6 +333,94 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/SuccessResponse"
+
+  /studios/albums/{id}/notification:
+    patch:
+      operationId: updateAlbumNotification
+      tags: [studios]
+      summary: Update album notification settings
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AlbumNotificationUpdate"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+
+  /studios/albums/{id}/send-notification:
+    post:
+      operationId: sendAlbumNotification
+      tags: [studios]
+      summary: Send album link to customer via webhook
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Sent
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NotificationResult"
+        "502":
+          description: Webhook failed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NotificationResult"
+
+  /studios/albums/{id}/publish:
+    put:
+      operationId: publishAlbum
+      tags: [studios]
+      summary: Publish album and optionally send webhook notification
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Published
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+
+  /studios/albums/{id}/confirmations:
+    get:
+      operationId: listAlbumConfirmations
+      tags: [studios]
+      summary: List album selection confirmations
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Confirmations
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ConfirmationsListResult"
 
   /albums/{id}/photos:
     get:
@@ -452,6 +559,15 @@ components:
         message:
           type: string
 
+    NotificationResult:
+      type: object
+      required: [success]
+      properties:
+        success:
+          type: boolean
+        error:
+          type: string
+
     LoginInput:
       type: object
       required: [email, password]
@@ -524,6 +640,10 @@ components:
         googleDriveConnected:
           type: boolean
         rootFolderId:
+          type: ["string", "null"]
+        defaultMaxSelection:
+          type: integer
+        n8nWebhookUrl:
           type: ["string", "null"]
 
     GoogleAuthUrl:
@@ -603,10 +723,29 @@ components:
           type: string
         password:
           type: string
+        defaultMaxSelection:
+          type: integer
+
+    WebhookSettingsUpdate:
+      type: object
+      required: [n8nWebhookUrl]
+      properties:
+        n8nWebhookUrl:
+          type: string
+        webhookSecret:
+          type: string
+
+    AlbumNotificationUpdate:
+      type: object
+      properties:
+        customerPhone:
+          type: string
+        autoSendEnabled:
+          type: boolean
 
     Album:
       type: object
-      required: [id, studioId, title, slug, allowDownload, allowNotes, maxSelection, isPublic, createdAt, updatedAt]
+      required: [id, studioId, title, slug, allowDownload, allowNotes, maxSelection, isPublic, autoSendEnabled, createdAt, updatedAt]
       properties:
         id:
           type: string
@@ -628,6 +767,14 @@ components:
           type: integer
         isPublic:
           type: boolean
+        customerPhone:
+          type: ["string", "null"]
+        autoSendEnabled:
+          type: boolean
+        webhookSentAt:
+          type: ["string", "null"]
+        webhookLastStatus:
+          type: ["string", "null"]
         createdAt:
           type: string
         updatedAt:
@@ -695,7 +842,7 @@ components:
 
     AlbumDetail:
       type: object
-      required: [id, studioId, title, slug, allowDownload, allowNotes, maxSelection, isPublic, createdAt, updatedAt, photos]
+      required: [id, studioId, title, slug, allowDownload, allowNotes, maxSelection, isPublic, autoSendEnabled, createdAt, updatedAt, photos]
       properties:
         id:
           type: string
@@ -717,6 +864,14 @@ components:
           type: integer
         isPublic:
           type: boolean
+        customerPhone:
+          type: ["string", "null"]
+        autoSendEnabled:
+          type: boolean
+        webhookSentAt:
+          type: ["string", "null"]
+        webhookLastStatus:
+          type: ["string", "null"]
         createdAt:
           type: string
         updatedAt:
@@ -727,6 +882,32 @@ components:
             $ref: "#/components/schemas/Photo"
         selectionCount:
           type: integer
+
+    Confirmation:
+      type: object
+      required: [id, customerName, photoCount, snapshot, confirmedAt]
+      properties:
+        id:
+          type: string
+        customerName:
+          type: string
+        photoCount:
+          type: integer
+        snapshot:
+          type: array
+          items:
+            type: object
+        confirmedAt:
+          type: string
+
+    ConfirmationsListResult:
+      type: object
+      required: [confirmations]
+      properties:
+        confirmations:
+          type: array
+          items:
+            $ref: "#/components/schemas/Confirmation"
 
     Photo:
       type: object

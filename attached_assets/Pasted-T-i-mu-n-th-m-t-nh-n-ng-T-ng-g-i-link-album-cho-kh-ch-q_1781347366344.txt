@@ -1,0 +1,228 @@
+Tôi muốn thêm tính năng "Tự động gửi link album cho khách qua Zalo" vào dự án
+Lumière Studio. Kiến trúc: app KHÔNG tích hợp Zalo trực tiếp, chỉ làm webhook
+dispatcher. Mỗi studio tự cài n8n riêng, tạo workflow nhận webhook và dùng node
+Zalo cá nhân để gửi tin cho khách.
+
+## 1. Thay đổi schema (lib/db/src/schema/index.ts)
+
+Thêm cột vào bảng `albums`:
+- customer_phone: text, nullable
+- auto_send_enabled: boolean, default false, not null
+- webhook_sent_at: timestamp, nullable
+- webhook_last_status: text, nullable ('success' | 'failed')
+
+Thêm cột vào bảng `studios`:
+- n8n_webhook_url: text, nullable
+- webhook_secret: text, nullable
+
+Sau khi sửa schema, chạy `pnpm --filter @workspace/db run push` để áp dụng
+thay đổi lên database (dev only).
+
+## 2. Cập nhật OpenAPI spec (lib/api-spec/openapi.yaml)
+
+Thêm các endpoint:
+
+- PATCH /studio/albums/{id}/notification
+  body: { customerPhone?: string, autoSendEnabled?: boolean }
+  response: { success: boolean }
+
+- PATCH /studio/settings/webhook
+  body: { n8nWebhookUrl: string, webhookSecret?: string }
+  response: { success: boolean }
+
+- POST /studio/albums/{id}/send-notification
+  (gửi thủ công ngay lập tức, không phụ thuộc autoSendEnabled)
+  response: { success: boolean, error?: string }
+
+- PUT /studio/albums/{id}/publish
+  (nếu endpoint publish album đã tồn tại, chỉ bổ sung logic dưới đây;
+   nếu chưa có thì tạo mới)
+  response: { success: boolean }
+
+Sau khi sửa spec, chạy `pnpm --filter @workspace/api-spec run codegen` để
+regenerate React Query hooks và Zod schemas.
+
+## 3. Backend service (artifacts/api-server/src/services/webhookNotifier.ts)
+
+Tạo file mới với function sendAlbumWebhook(album, studio):
+- Validate studio.n8nWebhookUrl và album.customerPhone tồn tại, nếu không trả
+  về { success: false, error: '...' }
+- Tạo payload JSON:
+  {
+    event: "album.ready",
+    albumId, albumSlug, galleryUrl (= `${PUBLIC_BASE_URL}/album/${slug}`),
+    customerPhone, studioId, timestamp
+  }
+- Nếu studio.webhookSecret tồn tại, ký HMAC-SHA256 payload và gửi trong header
+  X-Lumiere-Signature
+- POST payload đến studio.n8nWebhookUrl, timeout 10s, KHÔNG retry (gửi 1 lần,
+  log lỗi nếu fail)
+- Trả về { success: boolean, error?: string }
+
+## 4. Routes (artifacts/api-server, file routes của studio)
+
+Implement 4 endpoint ở mục 2:
+- PATCH /albums/:id/notification — update customerPhone + autoSendEnabled,
+  validate quyền sở hữu album thuộc studio đang đăng nhập
+- PATCH /settings/webhook — update n8nWebhookUrl + webhookSecret cho studio
+- POST /albums/:id/send-notification — gọi sendAlbumWebhook, update
+  webhookSentAt + webhookLastStatus, trả lỗi 502 nếu fail
+- PUT /albums/:id/publish — set status='published'; NẾU
+  album.autoSendEnabled === true, gọi sendAlbumWebhook ngay sau đó và lưu kết
+  quả vào webhookSentAt/webhookLastStatus (không block response nếu webhook
+  fail)
+
+Thêm PUBLIC_BASE_URL vào .env.example với comment giải thích đây là domain
+public để tạo link gallery.
+
+## 5. Frontend (artifacts/lumiere)
+
+a) Trang Studio Settings (thêm section mới hoặc tạo trang nếu chưa có):
+   - Input "n8n Webhook URL"
+   - Input "Webhook Secret" (optional, type password)
+   - Nút "Lưu cấu hình" gọi PATCH /studio/settings/webhook
+   - Ghi chú: "Dán URL webhook từ workflow n8n của bạn"
+
+b) Trang chỉnh sửa album (thêm vào form hiện có):
+   - Input "Số điện thoại khách hàng" (validate định dạng SĐT VN: 10 số,
+     bắt đầu bằng 0)
+   - Toggle "Tự động gửi qua Zalo khi publish album"
+   - Nút "Gửi link cho khách ngay" — disabled nếu chưa có customerPhone hoặc
+     studio chưa cấu hình n8nWebhookUrl, gọi POST send-notification
+   - Hiển thị trạng thái: nếu webhookSentAt tồn tại, show "Đã gửi lúc
+     {format date}" với badge màu xanh (success) hoặc đỏ (failed) theo
+     webhookLastStatus
+
+Dùng các React Query hooks generated từ codegen ở bước 2, theo style code
+hiện tại của project (Zod validation, error toast, v.v.)
+
+## 6. Tài liệu (tạo file docs/zalo-webhook-setup.md)
+
+Viết hướng dẫn ngắn cho studio:
+- Cách tạo Webhook node trong n8n và lấy URL
+- Cấu trúc payload JSON mà app sẽ gửi (copy từ mục 3)
+- Cách verify HMAC signature (X-Lumiere-Signature) nếu muốn bảo mật
+- Gợi ý dùng node Zalo cá nhân (ví dụ package zca-js) để parse customerPhone
+  và galleryUrl, gửi tin nhắn cho khách
+
+## Thứ tự thực hiện
+1. Schema + db push
+2. OpenAPI spec + codegen
+3. Backend service + routes
+4. Frontend settings page + album form
+5. Docs
+
+Giữ nguyên style code, naming convention và cấu trúc folder hiện tại của
+project. UI tiếng Việt theo user preferences trong replit.md.
+
+
+Code mẫu tham khảo (nếu Agent cần gợi ý cụ thể hơn)
+
+webhookNotifier.ts
+
+typescriptimport crypto from 'crypto';
+
+interface AlbumForWebhook {
+  id: string;
+  slug: string;
+  customerPhone: string | null;
+}
+
+interface StudioForWebhook {
+  id: string;
+  n8nWebhookUrl: string | null;
+  webhookSecret: string | null;
+}
+
+interface WebhookResult {
+  success: boolean;
+  error?: string;
+}
+
+export async function sendAlbumWebhook(
+  album: AlbumForWebhook,
+  studio: StudioForWebhook
+): Promise<WebhookResult> {
+  if (!studio.n8nWebhookUrl) {
+    return { success: false, error: 'Studio chưa cấu hình n8n webhook URL' };
+  }
+  if (!album.customerPhone) {
+    return { success: false, error: 'Album chưa có số điện thoại khách hàng' };
+  }
+
+  const payload = {
+    event: 'album.ready',
+    albumId: album.id,
+    albumSlug: album.slug,
+    galleryUrl: `${process.env.PUBLIC_BASE_URL}/album/${album.slug}`,
+    customerPhone: album.customerPhone,
+    studioId: studio.id,
+    timestamp: new Date().toISOString(),
+  };
+
+  const body = JSON.stringify(payload);
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+
+  if (studio.webhookSecret) {
+    const signature = crypto
+      .createHmac('sha256', studio.webhookSecret)
+      .update(body)
+      .digest('hex');
+    headers['X-Lumiere-Signature'] = signature;
+  }
+
+  try {
+    const res = await fetch(studio.n8nWebhookUrl, {
+      method: 'POST',
+      headers,
+      body,
+      signal: AbortSignal.timeout(10000),
+    });
+    return {
+      success: res.ok,
+      error: res.ok ? undefined : `n8n trả về status ${res.status}`,
+    };
+  } catch (err) {
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : 'Lỗi không xác định',
+    };
+  }
+}
+
+Route mẫu (publish + auto-send)
+
+typescriptrouter.put('/albums/:id/publish', requireAuth, async (req, res) => {
+  const album = await getAlbum(req.params.id, req.studioId);
+  const studio = await getStudio(req.studioId);
+
+  if (!album) return res.status(404).json({ success: false, error: 'Album không tồn tại' });
+
+  await db.update(albums)
+    .set({ status: 'published' })
+    .where(eq(albums.id, album.id));
+
+  if (album.autoSendEnabled) {
+    const result = await sendAlbumWebhook(album, studio);
+    await db.update(albums)
+      .set({
+        webhookSentAt: new Date(),
+        webhookLastStatus: result.success ? 'success' : 'failed',
+      })
+      .where(eq(albums.id, album.id));
+  }
+
+  res.json({ success: true });
+});
+
+Payload JSON gửi đến n8n
+
+json{
+  "event": "album.ready",
+  "albumId": "abc123",
+  "albumSlug": "wedding-mai-tuan-2026",
+  "galleryUrl": "https://lumiere.example.com/album/wedding-mai-tuan-2026",
+  "customerPhone": "0987654321",
+  "studioId": "studio_xyz",
+  "timestamp": "2026-06-13T10:00:00.000Z"
+}

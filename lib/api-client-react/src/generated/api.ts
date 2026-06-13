@@ -23,9 +23,11 @@ import type {
   AdminStats,
   AlbumDetailResult,
   AlbumInput,
+  AlbumNotificationUpdate,
   AlbumResult,
   AlbumUpdate,
   AlbumsListResult,
+  ConfirmationsListResult,
   ErrorResponse,
   GoogleAuthUrl,
   HealthStatus,
@@ -33,6 +35,7 @@ import type {
   LoginInput,
   LoginResult,
   MeResult,
+  NotificationResult,
   PhotoSelectionInput,
   PhotosListResult,
   PublicAlbum,
@@ -43,7 +46,8 @@ import type {
   StudioSettingsUpdate,
   StudioStatusUpdate,
   StudiosListResult,
-  SuccessResponse
+  SuccessResponse,
+  WebhookSettingsUpdate
 } from './api.schemas';
 
 import { customFetch } from '../custom-fetch';
@@ -875,6 +879,77 @@ export const useUpdateStudioSettings = <TError = ErrorType<unknown>,
       return useMutation(getUpdateStudioSettingsMutationOptions(options));
     }
 
+export const getUpdateWebhookSettingsUrl = () => {
+
+
+
+
+  return `/api/studios/settings/webhook`
+}
+
+/**
+ * @summary Update n8n webhook configuration
+ */
+export const updateWebhookSettings = async (webhookSettingsUpdate: WebhookSettingsUpdate, options?: RequestInit): Promise<SuccessResponse> => {
+
+  return customFetch<SuccessResponse>(getUpdateWebhookSettingsUrl(),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      webhookSettingsUpdate,)
+  }
+);}
+
+
+
+
+export const getUpdateWebhookSettingsMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateWebhookSettings>>, TError,{data: BodyType<WebhookSettingsUpdate>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateWebhookSettings>>, TError,{data: BodyType<WebhookSettingsUpdate>}, TContext> => {
+
+const mutationKey = ['updateWebhookSettings'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateWebhookSettings>>, {data: BodyType<WebhookSettingsUpdate>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  updateWebhookSettings(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateWebhookSettingsMutationResult = NonNullable<Awaited<ReturnType<typeof updateWebhookSettings>>>
+    export type UpdateWebhookSettingsMutationBody = BodyType<WebhookSettingsUpdate>
+    export type UpdateWebhookSettingsMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Update n8n webhook configuration
+ */
+export const useUpdateWebhookSettings = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateWebhookSettings>>, TError,{data: BodyType<WebhookSettingsUpdate>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateWebhookSettings>>,
+        TError,
+        {data: BodyType<WebhookSettingsUpdate>},
+        TContext
+      > => {
+      return useMutation(getUpdateWebhookSettingsMutationOptions(options));
+    }
+
 export const getListAlbumsUrl = () => {
 
 
@@ -1241,6 +1316,295 @@ export const useDeleteAlbum = <TError = ErrorType<unknown>,
       > => {
       return useMutation(getDeleteAlbumMutationOptions(options));
     }
+
+export const getUpdateAlbumNotificationUrl = (id: string,) => {
+
+
+
+
+  return `/api/studios/albums/${id}/notification`
+}
+
+/**
+ * @summary Update album notification settings
+ */
+export const updateAlbumNotification = async (id: string,
+    albumNotificationUpdate: AlbumNotificationUpdate, options?: RequestInit): Promise<SuccessResponse> => {
+
+  return customFetch<SuccessResponse>(getUpdateAlbumNotificationUrl(id),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      albumNotificationUpdate,)
+  }
+);}
+
+
+
+
+export const getUpdateAlbumNotificationMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateAlbumNotification>>, TError,{id: string;data: BodyType<AlbumNotificationUpdate>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateAlbumNotification>>, TError,{id: string;data: BodyType<AlbumNotificationUpdate>}, TContext> => {
+
+const mutationKey = ['updateAlbumNotification'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateAlbumNotification>>, {id: string;data: BodyType<AlbumNotificationUpdate>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  updateAlbumNotification(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateAlbumNotificationMutationResult = NonNullable<Awaited<ReturnType<typeof updateAlbumNotification>>>
+    export type UpdateAlbumNotificationMutationBody = BodyType<AlbumNotificationUpdate>
+    export type UpdateAlbumNotificationMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Update album notification settings
+ */
+export const useUpdateAlbumNotification = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateAlbumNotification>>, TError,{id: string;data: BodyType<AlbumNotificationUpdate>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateAlbumNotification>>,
+        TError,
+        {id: string;data: BodyType<AlbumNotificationUpdate>},
+        TContext
+      > => {
+      return useMutation(getUpdateAlbumNotificationMutationOptions(options));
+    }
+
+export const getSendAlbumNotificationUrl = (id: string,) => {
+
+
+
+
+  return `/api/studios/albums/${id}/send-notification`
+}
+
+/**
+ * @summary Send album link to customer via webhook
+ */
+export const sendAlbumNotification = async (id: string, options?: RequestInit): Promise<NotificationResult> => {
+
+  return customFetch<NotificationResult>(getSendAlbumNotificationUrl(id),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+export const getSendAlbumNotificationMutationOptions = <TError = ErrorType<NotificationResult>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof sendAlbumNotification>>, TError,{id: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof sendAlbumNotification>>, TError,{id: string}, TContext> => {
+
+const mutationKey = ['sendAlbumNotification'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof sendAlbumNotification>>, {id: string}> = (props) => {
+          const {id} = props ?? {};
+
+          return  sendAlbumNotification(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SendAlbumNotificationMutationResult = NonNullable<Awaited<ReturnType<typeof sendAlbumNotification>>>
+
+    export type SendAlbumNotificationMutationError = ErrorType<NotificationResult>
+
+    /**
+ * @summary Send album link to customer via webhook
+ */
+export const useSendAlbumNotification = <TError = ErrorType<NotificationResult>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof sendAlbumNotification>>, TError,{id: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof sendAlbumNotification>>,
+        TError,
+        {id: string},
+        TContext
+      > => {
+      return useMutation(getSendAlbumNotificationMutationOptions(options));
+    }
+
+export const getPublishAlbumUrl = (id: string,) => {
+
+
+
+
+  return `/api/studios/albums/${id}/publish`
+}
+
+/**
+ * @summary Publish album and optionally send webhook notification
+ */
+export const publishAlbum = async (id: string, options?: RequestInit): Promise<SuccessResponse> => {
+
+  return customFetch<SuccessResponse>(getPublishAlbumUrl(id),
+  {
+    ...options,
+    method: 'PUT'
+
+
+  }
+);}
+
+
+
+
+export const getPublishAlbumMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof publishAlbum>>, TError,{id: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof publishAlbum>>, TError,{id: string}, TContext> => {
+
+const mutationKey = ['publishAlbum'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof publishAlbum>>, {id: string}> = (props) => {
+          const {id} = props ?? {};
+
+          return  publishAlbum(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type PublishAlbumMutationResult = NonNullable<Awaited<ReturnType<typeof publishAlbum>>>
+
+    export type PublishAlbumMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Publish album and optionally send webhook notification
+ */
+export const usePublishAlbum = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof publishAlbum>>, TError,{id: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof publishAlbum>>,
+        TError,
+        {id: string},
+        TContext
+      > => {
+      return useMutation(getPublishAlbumMutationOptions(options));
+    }
+
+export const getListAlbumConfirmationsUrl = (id: string,) => {
+
+
+
+
+  return `/api/studios/albums/${id}/confirmations`
+}
+
+/**
+ * @summary List album selection confirmations
+ */
+export const listAlbumConfirmations = async (id: string, options?: RequestInit): Promise<ConfirmationsListResult> => {
+
+  return customFetch<ConfirmationsListResult>(getListAlbumConfirmationsUrl(id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListAlbumConfirmationsQueryKey = (id: string,) => {
+    return [
+    `/api/studios/albums/${id}/confirmations`
+    ] as const;
+    }
+
+
+export const getListAlbumConfirmationsQueryOptions = <TData = Awaited<ReturnType<typeof listAlbumConfirmations>>, TError = ErrorType<unknown>>(id: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listAlbumConfirmations>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListAlbumConfirmationsQueryKey(id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listAlbumConfirmations>>> = ({ signal }) => listAlbumConfirmations(id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: !!(id), ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listAlbumConfirmations>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListAlbumConfirmationsQueryResult = NonNullable<Awaited<ReturnType<typeof listAlbumConfirmations>>>
+export type ListAlbumConfirmationsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary List album selection confirmations
+ */
+
+export function useListAlbumConfirmations<TData = Awaited<ReturnType<typeof listAlbumConfirmations>>, TError = ErrorType<unknown>>(
+ id: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listAlbumConfirmations>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListAlbumConfirmationsQueryOptions(id,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
 
 export const getListPhotosUrl = (id: string,) => {
 
