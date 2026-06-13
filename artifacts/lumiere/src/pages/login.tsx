@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -13,10 +14,18 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
 import { getGetMeQueryKey } from "@workspace/api-client-react";
 import { FloatingContact } from "@/components/floating-contact";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 const formSchema = z.object({
   email: z.string().email("Email không hợp lệ"),
@@ -25,16 +34,13 @@ const formSchema = z.object({
 
 export default function Login() {
   const [, setLocation] = useLocation();
-  const { toast } = useToast();
   const queryClient = useQueryClient();
   const login = useLogin();
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
-    defaultValues: {
-      email: "",
-      password: "",
-    },
+    defaultValues: { email: "", password: "" },
   });
 
   function onSubmit(values: z.infer<typeof formSchema>) {
@@ -43,7 +49,6 @@ export default function Login() {
       {
         onSuccess: (res) => {
           queryClient.invalidateQueries({ queryKey: getGetMeQueryKey() });
-          toast({ title: "Đăng nhập thành công" });
           if (res.role === "ADMIN") {
             setLocation("/admin");
           } else {
@@ -51,11 +56,8 @@ export default function Login() {
           }
         },
         onError: (err) => {
-          toast({
-            title: "Lỗi đăng nhập",
-            description: (err.data as { error?: string })?.error || err.message || "Có lỗi xảy ra",
-            variant: "destructive",
-          });
+          const msg = (err.data as { error?: string })?.error || err.message || "Có lỗi xảy ra";
+          setErrorMsg(msg);
         },
       }
     );
@@ -118,6 +120,22 @@ export default function Login() {
       </div>
 
       <FloatingContact />
+
+      <AlertDialog open={errorMsg !== null}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-destructive">Đăng nhập thất bại</AlertDialogTitle>
+            <AlertDialogDescription className="text-base">
+              {errorMsg}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogAction onClick={() => setErrorMsg(null)}>
+              Đã hiểu
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
