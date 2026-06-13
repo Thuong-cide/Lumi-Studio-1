@@ -16,6 +16,7 @@ import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
 import { getGetMeQueryKey } from "@workspace/api-client-react";
+import { FloatingContact } from "@/components/floating-contact";
 
 const formSchema = z.object({
   email: z.string().email("Email không hợp lệ"),
@@ -61,7 +62,7 @@ export default function Login() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background p-4">
+    <div className="min-h-screen flex items-center justify-center bg-background p-4 relative">
       <div className="w-full max-w-md space-y-8">
         <div className="text-center">
           <h1 className="text-4xl font-serif font-bold text-foreground">Lumière</h1>
@@ -115,6 +116,8 @@ export default function Login() {
           </div>
         </div>
       </div>
+
+      <FloatingContact />
     </div>
   );
 }

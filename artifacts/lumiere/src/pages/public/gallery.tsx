@@ -20,7 +20,6 @@ import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "@/hooks/use-toast";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { BeforeAfterSlider } from "@/components/before-after-slider";
-import { FloatingContact } from "@/components/floating-contact";
 
 type ViewMode = "all" | "original" | "edited";
 
@@ -1024,7 +1023,6 @@ export default function PublicGallery() {
         </DialogContent>
       </Dialog>
 
-      <FloatingContact />
     </div>
   );
 }
