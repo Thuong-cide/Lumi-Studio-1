@@ -731,9 +731,24 @@ export default function PublicGallery() {
                 <p className="text-muted-foreground">Chưa có ảnh trong phiên bản này</p>
               </div>
             ) : (
-              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2 md:gap-4">
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
                 {editedPhotos.map((photo, index) => {
                   const editSrc = toDriveProxyUrl(photo.editedImageUrl);
+                  const origSrc = photo.originalPhoto
+                    ? `/api/drive/proxy/${photo.originalPhoto.driveFileId}`
+                    : "";
+
+                  if (origSrc) {
+                    return (
+                      <BeforeAfterSlider
+                        key={photo.id}
+                        beforeSrc={origSrc}
+                        afterSrc={editSrc}
+                        caption={photo.caption ?? undefined}
+                      />
+                    );
+                  }
+
                   return (
                     <motion.div
                       key={photo.id}
