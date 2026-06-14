@@ -16,4 +16,5 @@ export interface AuthStudio {
   defaultMaxSelection?: number;
   /** @nullable */
   n8nWebhookUrl?: string | null;
+  deliverableNotifyEnabled?: boolean;
 }

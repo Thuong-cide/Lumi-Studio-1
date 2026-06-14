@@ -5,6 +5,7 @@ import { eq, inArray } from "drizzle-orm";
 import { requireAuth, getErrorStatus } from "../lib/auth";
 import { createFolder, uploadFileToDrive } from "../lib/google-drive";
 import { logger } from "../lib/logger";
+import { sendDeliverableWebhook } from "../services/webhookNotifier";
 import multer from "multer";
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 50 * 1024 * 1024 } });
@@ -179,6 +180,27 @@ router.post("/studios/albums/:id/deliverables", async (req, res): Promise<void> 
     const insertedPhotos = await db.insert(deliverablePhotosTable).values(photoValues).returning();
 
     logger.info({ albumId, version: nextVersion, photoCount: insertedPhotos.length }, "[CREATE DELIVERABLE]");
+
+    // Fire deliverable webhook async (non-blocking)
+    db.select({
+      n8nWebhookUrl: studiosTable.n8nWebhookUrl,
+      webhookSecret: studiosTable.webhookSecret,
+      deliverableNotifyEnabled: studiosTable.deliverableNotifyEnabled,
+    }).from(studiosTable).where(eq(studiosTable.id, payload.id)).then(([studio]) => {
+      if (studio?.deliverableNotifyEnabled && studio.n8nWebhookUrl) {
+        sendDeliverableWebhook(
+          {
+            albumId,
+            albumSlug: album.slug,
+            customerPhone: album.customerPhone,
+            versionLabel: deliverable.versionLabel,
+            versionFolderUrl: deliverable.driveFolderUrl,
+            photoCount: insertedPhotos.length,
+          },
+          { id: payload.id, n8nWebhookUrl: studio.n8nWebhookUrl, webhookSecret: studio.webhookSecret ?? null }
+        ).catch(err => logger.error(err, "[WEBHOOK] deliverable.uploaded error"));
+      }
+    }).catch(err => logger.error(err, "[WEBHOOK] fetch studio error"));
 
     res.status(201).json({
       deliverable: {

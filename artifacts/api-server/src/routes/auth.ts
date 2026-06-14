@@ -138,6 +138,7 @@ router.get("/auth/me", async (req, res): Promise<void> => {
       rootFolderId: studiosTable.rootFolderId,
       defaultMaxSelection: studiosTable.defaultMaxSelection,
       n8nWebhookUrl: studiosTable.n8nWebhookUrl,
+      deliverableNotifyEnabled: studiosTable.deliverableNotifyEnabled,
     }).from(studiosTable).where(eq(studiosTable.id, payload.id));
 
     if (!studio) {
@@ -167,6 +168,7 @@ router.get("/auth/me", async (req, res): Promise<void> => {
         rootFolderId: studio.rootFolderId,
         defaultMaxSelection: studio.defaultMaxSelection ?? 0,
         n8nWebhookUrl: studio.n8nWebhookUrl ?? null,
+        deliverableNotifyEnabled: studio.deliverableNotifyEnabled ?? false,
       },
     });
   } catch (e) {

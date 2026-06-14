@@ -9,4 +9,5 @@
 export interface WebhookSettingsUpdate {
   n8nWebhookUrl: string;
   webhookSecret?: string;
+  deliverableNotifyEnabled?: boolean;
 }

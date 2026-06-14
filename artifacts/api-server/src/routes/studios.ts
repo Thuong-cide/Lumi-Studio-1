@@ -41,7 +41,7 @@ router.patch("/studios/settings", async (req, res): Promise<void> => {
 router.patch("/studios/settings/webhook", async (req, res): Promise<void> => {
   try {
     const payload = requireAuth(req, "STUDIO");
-    const { n8nWebhookUrl, webhookSecret } = req.body;
+    const { n8nWebhookUrl, webhookSecret, deliverableNotifyEnabled } = req.body;
     if (!n8nWebhookUrl?.trim()) {
       res.status(400).json({ error: "Vui lòng nhập n8n Webhook URL" });
       return;
@@ -49,6 +49,9 @@ router.patch("/studios/settings/webhook", async (req, res): Promise<void> => {
     const data: Record<string, unknown> = { n8nWebhookUrl: n8nWebhookUrl.trim() };
     if (webhookSecret !== undefined) {
       data.webhookSecret = webhookSecret.trim() || null;
+    }
+    if (deliverableNotifyEnabled !== undefined) {
+      data.deliverableNotifyEnabled = !!deliverableNotifyEnabled;
     }
     await db.update(studiosTable).set(data).where(eq(studiosTable.id, payload.id));
     res.json({ success: true });

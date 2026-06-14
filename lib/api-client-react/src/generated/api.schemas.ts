@@ -79,6 +79,7 @@ export interface AuthStudio {
   defaultMaxSelection?: number;
   /** @nullable */
   n8nWebhookUrl?: string | null;
+  deliverableNotifyEnabled?: boolean;
 }
 
 export interface MeResult {
@@ -155,6 +156,7 @@ export interface StudioSettingsUpdate {
 export interface WebhookSettingsUpdate {
   n8nWebhookUrl: string;
   webhookSecret?: string;
+  deliverableNotifyEnabled?: boolean;
 }
 
 export interface AlbumNotificationUpdate {

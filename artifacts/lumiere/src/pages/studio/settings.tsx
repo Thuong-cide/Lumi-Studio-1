@@ -19,6 +19,7 @@ import {
   FormDescription,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
+import { Switch } from "@/components/ui/switch";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { toast } from "@/hooks/use-toast";
 import { useEffect } from "react";
@@ -34,6 +35,7 @@ const profileSchema = z.object({
 const webhookSchema = z.object({
   n8nWebhookUrl: z.string().url("Vui lòng nhập URL hợp lệ (bắt đầu bằng http/https)"),
   webhookSecret: z.string().optional(),
+  deliverableNotifyEnabled: z.boolean().default(false),
 });
 
 export default function StudioSettings() {
@@ -49,7 +51,7 @@ export default function StudioSettings() {
 
   const webhookForm = useForm<z.infer<typeof webhookSchema>>({
     resolver: zodResolver(webhookSchema),
-    defaultValues: { n8nWebhookUrl: "", webhookSecret: "" },
+    defaultValues: { n8nWebhookUrl: "", webhookSecret: "", deliverableNotifyEnabled: false },
   });
 
   useEffect(() => {
@@ -59,6 +61,7 @@ export default function StudioSettings() {
       if (me.studio.n8nWebhookUrl) {
         webhookForm.setValue("n8nWebhookUrl", me.studio.n8nWebhookUrl);
       }
+      webhookForm.setValue("deliverableNotifyEnabled", (me.studio as { deliverableNotifyEnabled?: boolean }).deliverableNotifyEnabled ?? false);
     }
   }, [me]);
 
@@ -91,7 +94,7 @@ export default function StudioSettings() {
 
   function onSubmitWebhook(values: z.infer<typeof webhookSchema>) {
     updateWebhook.mutate(
-      { data: { n8nWebhookUrl: values.n8nWebhookUrl, webhookSecret: values.webhookSecret || undefined } },
+      { data: { n8nWebhookUrl: values.n8nWebhookUrl, webhookSecret: values.webhookSecret || undefined, deliverableNotifyEnabled: values.deliverableNotifyEnabled } },
       {
         onSuccess: () => {
           queryClient.invalidateQueries({ queryKey: getGetMeQueryKey() });
@@ -209,6 +212,26 @@ export default function StudioSettings() {
                         Nếu điền, mỗi request sẽ có header <code className="text-xs bg-muted px-1 rounded">X-Lumiere-Signature</code> để n8n verify.
                       </FormDescription>
                       <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={webhookForm.control}
+                  name="deliverableNotifyEnabled"
+                  render={({ field }) => (
+                    <FormItem className="flex items-center justify-between rounded-lg border p-4">
+                      <div className="space-y-0.5">
+                        <FormLabel className="text-base">Thông báo khi tải file chỉnh sửa</FormLabel>
+                        <FormDescription>
+                          Tự động gửi thông báo Zalo qua webhook khi studio tải ảnh đã chỉnh sửa (deliverable) lên.
+                        </FormDescription>
+                      </div>
+                      <FormControl>
+                        <Switch
+                          checked={field.value}
+                          onCheckedChange={field.onChange}
+                        />
+                      </FormControl>
                     </FormItem>
                   )}
                 />

@@ -71,7 +71,8 @@ export const GetMeResponse = zod.object({
   "googleDriveConnected": zod.boolean(),
   "rootFolderId": zod.string().nullish(),
   "defaultMaxSelection": zod.number().optional(),
-  "n8nWebhookUrl": zod.string().nullish()
+  "n8nWebhookUrl": zod.string().nullish(),
+  "deliverableNotifyEnabled": zod.boolean().optional()
 }).optional()
 })
 
@@ -181,7 +182,8 @@ export const UpdateStudioSettingsResponse = zod.object({
  */
 export const UpdateWebhookSettingsBody = zod.object({
   "n8nWebhookUrl": zod.string(),
-  "webhookSecret": zod.string().optional()
+  "webhookSecret": zod.string().optional(),
+  "deliverableNotifyEnabled": zod.boolean().optional()
 })
 
 export const UpdateWebhookSettingsResponse = zod.object({

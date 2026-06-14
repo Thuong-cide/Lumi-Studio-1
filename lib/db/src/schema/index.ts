@@ -20,6 +20,7 @@ export const studiosTable = pgTable("studios", {
   defaultMaxSelection: integer("default_max_selection").notNull().default(0),
   n8nWebhookUrl: text("n8n_webhook_url"),
   webhookSecret: text("webhook_secret"),
+  deliverableNotifyEnabled: boolean("deliverable_notify_enabled").notNull().default(false),
   expiresAt: timestamp("expires_at"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow().$onUpdate(() => new Date()),

@@ -18,6 +18,35 @@ export interface WebhookResult {
   error?: string;
 }
 
+async function sendWebhook(
+  url: string,
+  secret: string | null,
+  payload: Record<string, unknown>
+): Promise<WebhookResult> {
+  const body = JSON.stringify(payload);
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+
+  if (secret) {
+    const signature = crypto.createHmac("sha256", secret).update(body).digest("hex");
+    headers["X-Lumiere-Signature"] = signature;
+  }
+
+  try {
+    const res = await fetch(url, {
+      method: "POST",
+      headers,
+      body,
+      signal: AbortSignal.timeout(10_000),
+    });
+    if (!res.ok) {
+      return { success: false, error: `Webhook trả về status ${res.status}` };
+    }
+    return { success: true };
+  } catch (err) {
+    return { success: false, error: err instanceof Error ? err.message : "Lỗi không xác định" };
+  }
+}
+
 export async function sendAlbumWebhook(
   album: AlbumForWebhook,
   studio: StudioForWebhook
@@ -29,7 +58,7 @@ export async function sendAlbumWebhook(
     return { success: false, error: "Album chưa có số điện thoại khách hàng" };
   }
 
-  const payload = {
+  const result = await sendWebhook(studio.n8nWebhookUrl, studio.webhookSecret, {
     event: "album.ready",
     albumId: album.id,
     albumSlug: album.slug,
@@ -37,38 +66,50 @@ export async function sendAlbumWebhook(
     customerPhone: album.customerPhone,
     studioId: studio.id,
     timestamp: new Date().toISOString(),
-  };
+  });
 
-  const body = JSON.stringify(payload);
-  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  if (result.success) {
+    logger.info({ albumId: album.id, customerPhone: album.customerPhone }, "[WEBHOOK] album.ready sent");
+  } else {
+    logger.warn({ albumId: album.id, error: result.error }, "[WEBHOOK] album.ready failed");
+  }
+  return result;
+}
 
-  if (studio.webhookSecret) {
-    const signature = crypto
-      .createHmac("sha256", studio.webhookSecret)
-      .update(body)
-      .digest("hex");
-    headers["X-Lumiere-Signature"] = signature;
+export interface DeliverableForWebhook {
+  albumId: string;
+  albumSlug: string;
+  customerPhone: string | null;
+  versionLabel: string;
+  versionFolderUrl: string;
+  photoCount: number;
+}
+
+export async function sendDeliverableWebhook(
+  deliverable: DeliverableForWebhook,
+  studio: StudioForWebhook
+): Promise<WebhookResult> {
+  if (!studio.n8nWebhookUrl) {
+    return { success: false, error: "Studio chưa cấu hình n8n Webhook URL" };
   }
 
-  try {
-    const res = await fetch(studio.n8nWebhookUrl, {
-      method: "POST",
-      headers,
-      body,
-      signal: AbortSignal.timeout(10_000),
-    });
+  const result = await sendWebhook(studio.n8nWebhookUrl, studio.webhookSecret, {
+    event: "deliverable.uploaded",
+    albumId: deliverable.albumId,
+    albumSlug: deliverable.albumSlug,
+    galleryUrl: `${process.env.PUBLIC_BASE_URL ?? ""}/album/${deliverable.albumSlug}`,
+    customerPhone: deliverable.customerPhone ?? null,
+    versionLabel: deliverable.versionLabel,
+    versionFolderUrl: deliverable.versionFolderUrl,
+    photoCount: deliverable.photoCount,
+    studioId: studio.id,
+    timestamp: new Date().toISOString(),
+  });
 
-    if (!res.ok) {
-      const errMsg = `n8n trả về status ${res.status}`;
-      logger.warn({ albumId: album.id, status: res.status }, "[WEBHOOK] Failed");
-      return { success: false, error: errMsg };
-    }
-
-    logger.info({ albumId: album.id, customerPhone: album.customerPhone }, "[WEBHOOK] Sent");
-    return { success: true };
-  } catch (err) {
-    const errMsg = err instanceof Error ? err.message : "Lỗi không xác định";
-    logger.error({ albumId: album.id, err }, "[WEBHOOK] Error");
-    return { success: false, error: errMsg };
+  if (result.success) {
+    logger.info({ albumId: deliverable.albumId, version: deliverable.versionLabel }, "[WEBHOOK] deliverable.uploaded sent");
+  } else {
+    logger.warn({ albumId: deliverable.albumId, error: result.error }, "[WEBHOOK] deliverable.uploaded failed");
   }
+  return result;
 }

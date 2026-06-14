@@ -708,6 +708,8 @@ components:
           type: integer
         n8nWebhookUrl:
           type: ["string", "null"]
+        deliverableNotifyEnabled:
+          type: boolean
 
     GoogleAuthUrl:
       type: object
@@ -802,6 +804,8 @@ components:
           type: string
         webhookSecret:
           type: string
+        deliverableNotifyEnabled:
+          type: boolean
 
     AlbumNotificationUpdate:
       type: object
