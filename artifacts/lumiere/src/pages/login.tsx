@@ -5,6 +5,7 @@ import { z } from "zod";
 import { useLogin } from "@workspace/api-client-react";
 import { useLocation, Link } from "wouter";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Form,
   FormControl,
@@ -30,6 +31,7 @@ import {
 const formSchema = z.object({
   email: z.string().email("Email không hợp lệ"),
   password: z.string().min(6, "Mật khẩu phải có ít nhất 6 ký tự"),
+  rememberMe: z.boolean().default(false),
 });
 
 export default function Login() {
@@ -40,12 +42,12 @@ export default function Login() {
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
-    defaultValues: { email: "", password: "" },
+    defaultValues: { email: "", password: "", rememberMe: false },
   });
 
   function onSubmit(values: z.infer<typeof formSchema>) {
     login.mutate(
-      { data: values },
+      { data: { email: values.email, password: values.password, rememberMe: values.rememberMe } },
       {
         onSuccess: (res) => {
           queryClient.invalidateQueries({ queryKey: getGetMeQueryKey() });
@@ -100,6 +102,26 @@ export default function Login() {
                   </FormItem>
                 )}
               />
+
+              <FormField
+                control={form.control}
+                name="rememberMe"
+                render={({ field }) => (
+                  <FormItem className="flex items-center gap-2.5 space-y-0">
+                    <FormControl>
+                      <Checkbox
+                        id="rememberMe"
+                        checked={field.value}
+                        onCheckedChange={field.onChange}
+                      />
+                    </FormControl>
+                    <FormLabel htmlFor="rememberMe" className="text-sm font-normal cursor-pointer select-none">
+                      Ghi nhớ đăng nhập trong 30 ngày
+                    </FormLabel>
+                  </FormItem>
+                )}
+              />
+
               <Button
                 type="submit"
                 className="w-full bg-primary text-primary-foreground hover:bg-primary/90"

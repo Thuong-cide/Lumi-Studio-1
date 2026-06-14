@@ -10,11 +10,15 @@ const router = Router();
 
 router.post("/auth/login", async (req, res): Promise<void> => {
   try {
-    const { email, password } = req.body;
+    const { email, password, rememberMe } = req.body;
     if (!email || !password) {
       res.status(400).json({ error: "Vui lòng điền đầy đủ thông tin" });
       return;
     }
+
+    const cookieMaxAge = rememberMe
+      ? 60 * 60 * 24 * 30 * 1000  // 30 ngày
+      : 60 * 60 * 24 * 1 * 1000;  // 1 ngày
 
     const [admin] = await db.select().from(adminUsersTable).where(eq(adminUsersTable.email, email));
     if (admin && (await comparePassword(password, admin.passwordHash))) {
@@ -23,7 +27,7 @@ router.post("/auth/login", async (req, res): Promise<void> => {
         httpOnly: true,
         secure: process.env.NODE_ENV === "production",
         sameSite: "lax",
-        maxAge: 60 * 60 * 24 * 7 * 1000,
+        maxAge: rememberMe ? 60 * 60 * 24 * 30 * 1000 : 60 * 60 * 24 * 7 * 1000,
         path: "/",
       });
       res.json({ success: true, role: "ADMIN" });
@@ -53,7 +57,7 @@ router.post("/auth/login", async (req, res): Promise<void> => {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
       sameSite: "lax",
-      maxAge: 60 * 60 * 24 * 7 * 1000,
+      maxAge: cookieMaxAge,
       path: "/",
     });
     res.json({ success: true, role: "STUDIO", studio: { id: studio.id, name: studio.name } });

@@ -26,6 +26,7 @@ export interface NotificationResult {
 export interface LoginInput {
   email: string;
   password: string;
+  rememberMe?: boolean;
 }
 
 export type LoginResultRole = typeof LoginResultRole[keyof typeof LoginResultRole];
