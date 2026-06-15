@@ -211,6 +211,7 @@ export const ListAlbumsResponse = zod.object({
   "autoSendEnabled": zod.boolean(),
   "webhookSentAt": zod.string().nullish(),
   "webhookLastStatus": zod.string().nullish(),
+  "showBeforeAfter": zod.boolean().optional(),
   "deliverableRootFolderUrl": zod.string().nullish(),
   "createdAt": zod.string(),
   "updatedAt": zod.string(),
@@ -258,6 +259,7 @@ export const GetAlbumResponse = zod.object({
   "autoSendEnabled": zod.boolean(),
   "webhookSentAt": zod.string().nullish(),
   "webhookLastStatus": zod.string().nullish(),
+  "showBeforeAfter": zod.boolean().optional(),
   "deliverableRootFolderUrl": zod.string().nullish(),
   "createdAt": zod.string(),
   "updatedAt": zod.string(),
@@ -291,7 +293,8 @@ export const UpdateAlbumBody = zod.object({
   "maxSelection": zod.number().optional(),
   "allowDownload": zod.boolean().optional(),
   "allowNotes": zod.boolean().optional(),
-  "isPublic": zod.boolean().optional()
+  "isPublic": zod.boolean().optional(),
+  "showBeforeAfter": zod.boolean().optional()
 })
 
 export const UpdateAlbumResponse = zod.object({
@@ -462,6 +465,7 @@ export const GetPublicAlbumResponse = zod.object({
   "allowDownload": zod.boolean(),
   "allowNotes": zod.boolean(),
   "maxSelection": zod.number(),
+  "showBeforeAfter": zod.boolean().optional(),
   "studio": zod.object({
   "name": zod.string().optional()
 }).optional(),

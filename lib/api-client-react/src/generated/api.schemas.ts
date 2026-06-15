@@ -184,6 +184,7 @@ export interface Album {
   webhookSentAt?: string | null;
   /** @nullable */
   webhookLastStatus?: string | null;
+  showBeforeAfter?: boolean;
   /** @nullable */
   deliverableRootFolderUrl?: string | null;
   createdAt: string;
@@ -210,6 +211,7 @@ export interface AlbumUpdate {
   allowDownload?: boolean;
   allowNotes?: boolean;
   isPublic?: boolean;
+  showBeforeAfter?: boolean;
 }
 
 export interface AlbumsListResult {
@@ -267,6 +269,7 @@ export interface AlbumDetail {
   webhookSentAt?: string | null;
   /** @nullable */
   webhookLastStatus?: string | null;
+  showBeforeAfter?: boolean;
   /** @nullable */
   deliverableRootFolderUrl?: string | null;
   createdAt: string;
@@ -331,6 +334,7 @@ export interface PublicAlbum {
   allowDownload: boolean;
   allowNotes: boolean;
   maxSelection: number;
+  showBeforeAfter?: boolean;
   studio?: PublicAlbumStudio;
   photos: Photo[];
 }

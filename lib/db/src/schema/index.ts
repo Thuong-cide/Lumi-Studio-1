@@ -43,6 +43,7 @@ export const albumsTable = pgTable("albums", {
   autoSendEnabled: boolean("auto_send_enabled").notNull().default(true),
   webhookSentAt: timestamp("webhook_sent_at"),
   webhookLastStatus: text("webhook_last_status"),
+  showBeforeAfter: boolean("show_before_after").notNull().default(true),
   deliverableRootFolderUrl: text("deliverable_root_folder_url"),
   deliverableRootFolderId: text("deliverable_root_folder_id"),
   createdAt: timestamp("created_at").notNull().defaultNow(),

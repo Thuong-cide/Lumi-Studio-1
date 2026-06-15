@@ -13,4 +13,5 @@ export interface AlbumUpdate {
   allowDownload?: boolean;
   allowNotes?: boolean;
   isPublic?: boolean;
+  showBeforeAfter?: boolean;
 }

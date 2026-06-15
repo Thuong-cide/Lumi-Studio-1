@@ -348,7 +348,7 @@ router.patch("/studios/albums/:id", async (req, res): Promise<void> => {
   try {
     const payload = requireAuth(req, "STUDIO");
     const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
-    const { title, description, maxSelection, allowDownload, allowNotes, isPublic } = req.body;
+    const { title, description, maxSelection, allowDownload, allowNotes, isPublic, showBeforeAfter } = req.body;
     const data: Record<string, unknown> = {};
     if (title !== undefined) data.title = title;
     if (description !== undefined) data.description = description;
@@ -356,6 +356,7 @@ router.patch("/studios/albums/:id", async (req, res): Promise<void> => {
     if (allowDownload !== undefined) data.allowDownload = Boolean(allowDownload);
     if (allowNotes !== undefined) data.allowNotes = Boolean(allowNotes);
     if (isPublic !== undefined) data.isPublic = Boolean(isPublic);
+    if (showBeforeAfter !== undefined) data.showBeforeAfter = Boolean(showBeforeAfter);
 
     const [album] = await db.select().from(albumsTable).where(eq(albumsTable.id, id));
     if (!album || album.studioId !== payload.id) {

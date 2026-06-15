@@ -31,6 +31,7 @@ router.get("/public/album/:slug", async (req, res): Promise<void> => {
       allowDownload: album.allowDownload,
       allowNotes: album.allowNotes,
       maxSelection: album.maxSelection,
+      showBeforeAfter: album.showBeforeAfter ?? true,
       studio: { name: studioResult[0]?.name ?? "" },
       photos: photos.map(p => ({ ...p, createdAt: p.createdAt.toISOString() })),
     });

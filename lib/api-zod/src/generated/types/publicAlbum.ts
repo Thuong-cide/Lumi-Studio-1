@@ -17,6 +17,7 @@ export interface PublicAlbum {
   allowDownload: boolean;
   allowNotes: boolean;
   maxSelection: number;
+  showBeforeAfter?: boolean;
   studio?: PublicAlbumStudio;
   photos: Photo[];
 }

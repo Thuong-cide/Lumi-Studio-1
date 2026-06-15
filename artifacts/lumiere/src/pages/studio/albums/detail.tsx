@@ -8,6 +8,7 @@ import {
   useUpdateAlbumNotification,
   useSendAlbumNotification,
   usePublishAlbum,
+  useUpdateAlbum,
   useGetMe,
   getGetMeQueryKey,
 } from "@workspace/api-client-react";
@@ -18,6 +19,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import { toast } from "@/hooks/use-toast";
 import { ArrowLeft, Upload, Trash2, Users, Link as LinkIcon, Send, Globe, CheckCircle2, XCircle, MessageCircle } from "lucide-react";
 import { motion } from "framer-motion";
@@ -62,6 +64,7 @@ export default function AlbumDetail() {
   const updateNotif = useUpdateAlbumNotification();
   const sendNotif = useSendAlbumNotification();
   const publishAlbum = usePublishAlbum();
+  const updateAlbum = useUpdateAlbum();
 
   const album = albumData?.album;
   const photos = photosData?.photos || [];
@@ -353,6 +356,36 @@ export default function AlbumDetail() {
               </div>
             </form>
           </Form>
+        </CardContent>
+      </Card>
+
+      {/* Before/After toggle */}
+      <Card>
+        <CardContent className="pt-5">
+          <div className="flex items-center justify-between">
+            <div className="space-y-0.5">
+              <p className="text-sm font-medium">Hiển thị so sánh Before/After</p>
+              <p className="text-xs text-muted-foreground">
+                Cho phép khách hàng xem ảnh gốc và ảnh chỉnh sửa cạnh nhau trên trang album.
+              </p>
+            </div>
+            <Switch
+              checked={album?.showBeforeAfter ?? true}
+              onCheckedChange={(checked) => {
+                updateAlbum.mutate(
+                  { id: albumId, data: { showBeforeAfter: checked } },
+                  {
+                    onSuccess: () => {
+                      queryClient.invalidateQueries({ queryKey: getGetAlbumQueryKey(albumId) });
+                      toast({ title: checked ? "Đã bật Before/After" : "Đã tắt Before/After" });
+                    },
+                    onError: () => toast({ title: "Lỗi", description: "Không thể cập nhật", variant: "destructive" }),
+                  }
+                );
+              }}
+              disabled={updateAlbum.isPending}
+            />
+          </div>
         </CardContent>
       </Card>
 

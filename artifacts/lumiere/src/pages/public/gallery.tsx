@@ -110,7 +110,7 @@ export default function PublicGallery() {
   const album = albumData;
   const photos = album?.photos || [];
   const deliverables = deliverablesData?.deliverables ?? [];
-  const hasDeliverables = deliverables.length > 0;
+  const hasDeliverables = deliverables.length > 0 && (album?.showBeforeAfter ?? true);
   const activeDeliverable = deliverables.find(d => d.id === selectedDeliverableId)
     ?? deliverables[deliverables.length - 1];
   const editedPhotos = activeDeliverable?.photos ?? [];

@@ -847,6 +847,8 @@ components:
           type: ["string", "null"]
         webhookLastStatus:
           type: ["string", "null"]
+        showBeforeAfter:
+          type: boolean
         deliverableRootFolderUrl:
           type: ["string", "null"]
         createdAt:
@@ -893,6 +895,8 @@ components:
         allowNotes:
           type: boolean
         isPublic:
+          type: boolean
+        showBeforeAfter:
           type: boolean
 
     AlbumsListResult:
@@ -953,6 +957,8 @@ components:
           type: ["string", "null"]
         webhookLastStatus:
           type: ["string", "null"]
+        showBeforeAfter:
+          type: boolean
         deliverableRootFolderUrl:
           type: ["string", "null"]
         createdAt:
@@ -1083,6 +1089,8 @@ components:
           type: boolean
         maxSelection:
           type: integer
+        showBeforeAfter:
+          type: boolean
         studio:
           type: object
           properties:
