@@ -4,18 +4,24 @@
 
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
 
-source .env 2>/dev/null || { echo "Không tìm thấy file .env"; exit 1; }
+if [[ ! -f .env ]]; then
+  echo "Không tìm thấy file .env — hãy chạy setup-ubuntu.sh trước."
+  exit 1
+fi
+
+source .env
 
 echo "Tạo / cập nhật tài khoản Admin Lumière"
 echo ""
 read -rp "Email Admin: " ADMIN_EMAIL
 read -rsp "Mật khẩu (ít nhất 8 ký tự): " ADMIN_PASSWORD; echo ""
 
-docker compose exec \
+docker exec \
   -e ADMIN_EMAIL="$ADMIN_EMAIL" \
   -e ADMIN_PASSWORD="$ADMIN_PASSWORD" \
   -e DATABASE_URL="$DATABASE_URL" \
-  lumiere node /app/dist/create-admin.mjs
+  lumiere-studio \
+  node /app/dist/create-admin.mjs
 
 echo ""
 echo "Xong! Đăng nhập tại http://localhost:9200/login"
