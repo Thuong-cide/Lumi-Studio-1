@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
 import { photosTable, albumsTable, selectionsTable } from "@workspace/db";
-import { eq, count } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { requireAuth, getErrorStatus } from "../lib/auth";
 import { uploadFileToDrive } from "../lib/google-drive";
 import { studiosTable } from "@workspace/db";
@@ -151,14 +151,13 @@ router.post("/drive/upload", upload.single("file"), async (req, res): Promise<vo
       file.buffer
     );
 
-    const [orderResult] = await db.select({ count: count() }).from(photosTable).where(eq(photosTable.albumId, albumId));
     const [photo] = await db.insert(photosTable).values({
       albumId,
       driveFileId: fileId,
       filename: file.originalname,
       mimeType: file.mimetype,
       thumbnailUrl,
-      order: Number(orderResult.count),
+      order: sql`(SELECT COALESCE(MAX(${photosTable.order}), -1) + 1 FROM ${photosTable} WHERE ${photosTable.albumId} = ${albumId})`,
     }).returning();
 
     res.status(201).json({ photo: { ...photo, createdAt: photo.createdAt.toISOString() } });
