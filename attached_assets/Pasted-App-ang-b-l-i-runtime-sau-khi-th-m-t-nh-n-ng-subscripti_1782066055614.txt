@@ -1,0 +1,241 @@
+App đang bị lỗi runtime sau khi thêm tính năng subscription:
+
+  [plugin:runtime-error-plugin] Không thể thực thi 'removeChild' trên 'Node':
+  Nút cần xóa không phải là con của nút này.
+
+Lỗi xảy ra khi: nhấn Esc để đóng popup hết hạn → màn hình trắng.
+Đây là lỗi React DOM Portal conflict. Hãy fix theo đúng các bước sau:
+
+---
+
+## BƯỚC 1: TÌM VÀ KIỂM TRA TẤT CẢ MODAL/POPUP MỚI THÊM
+
+Tìm tất cả component liên quan đến subscription vừa tạo:
+- SubscriptionExpiredModal (hoặc tên tương tự)
+- PaymentQRModal
+- Bất kỳ component nào dùng từ khoá: createPortal, document.body, overlay, modal
+
+Với mỗi component tìm được, kiểm tra xem nó đang dùng cách render nào.
+
+---
+
+## BƯỚC 2: ĐẢM BẢO MỌI MODAL DÙNG createPortal ĐÚNG CÁCH
+
+Mọi modal/overlay PHẢI dùng React Portal để tránh lỗi DOM conflict.
+Đây là pattern chuẩn — áp dụng cho tất cả modal trong app:
+
+```tsx
+// components/Modal.tsx — BASE COMPONENT dùng chung
+import { useEffect, useRef } from 'react'
+import { createPortal } from 'react-dom'
+
+interface ModalProps {
+  isOpen: boolean
+  onClose: () => void
+  children: React.ReactNode
+}
+
+export function Modal({ isOpen, onClose, children }: ModalProps) {
+  const elRef = useRef<HTMLDivElement | null>(null)
+  
+  if (!elRef.current) {
+    elRef.current = document.createElement('div')
+  }
+
+  useEffect(() => {
+    const el = elRef.current!
+    document.body.appendChild(el)
+    return () => {
+      // Chỉ xóa nếu vẫn còn là con của body
+      if (document.body.contains(el)) {
+        document.body.removeChild(el)
+      }
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!isOpen) return
+    const handleEsc = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose()
+    }
+    document.addEventListener('keydown', handleEsc)
+    return () => document.removeEventListener('keydown', handleEsc)
+  }, [isOpen, onClose])
+
+  if (!isOpen) return null
+
+  return createPortal(
+    <div
+      style={{
+        position: 'fixed', inset: 0, zIndex: 9999,
+        backgroundColor: 'rgba(0,0,0,0.6)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center'
+      }}
+      onClick={(e) => { if (e.target === e.currentTarget) onClose() }}
+    >
+      {children}
+    </div>,
+    elRef.current
+  )
+}
+```
+
+---
+
+## BƯỚC 3: REFACTOR SUBSCRIPTION EXPIRED MODAL
+
+Dùng base Modal vừa tạo. Đây là cấu trúc chuẩn:
+
+```tsx
+// components/SubscriptionExpiredModal.tsx
+import { useState } from 'react'
+import { Modal } from './Modal'
+
+interface Props {
+  isOpen: boolean
+  onClose: () => void
+  studioId: number
+}
+
+export function SubscriptionExpiredModal({ isOpen, onClose, studioId }: Props) {
+  const [step, setStep] = useState<'info' | 'payment'>('info')
+  const [paymentData, setPaymentData] = useState<{
+    qrCode: string
+    transferContent: string
+    amount: number
+    orderCode: number
+  } | null>(null)
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
+
+  // Reset về info khi modal đóng/mở lại
+  const handleClose = () => {
+    setStep('info')
+    setPaymentData(null)
+    setError('')
+    onClose()
+  }
+
+  const handleRenew = async () => {
+    setLoading(true)
+    setError('')
+    try {
+      const res = await fetch('/api/studio/payment/create-order', {
+        method: 'POST',
+        credentials: 'include',
+      })
+      if (res.status === 503) {
+        setError('Hệ thống thanh toán chưa sẵn sàng. Vui lòng liên hệ quản trị viên.')
+        return
+      }
+      if (!res.ok) throw new Error()
+      const data = await res.json()
+      setPaymentData(data)
+      setStep('payment')
+    } catch {
+      setError('Có lỗi xảy ra. Vui lòng thử lại.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <Modal isOpen={isOpen} onClose={handleClose}>
+      <div style={{
+        background: '#1a1a2e', borderRadius: 12, padding: 32,
+        minWidth: 360, maxWidth: 480, color: 'white'
+      }}>
+        {step === 'info' && (
+          <>
+            <h2>Tài khoản đã hết hạn</h2>
+            <p>Vui lòng gia hạn để tiếp tục sử dụng Lumière Studio.</p>
+            {error && <p style={{ color: '#ff6b6b' }}>{error}</p>}
+            <button onClick={handleRenew} disabled={loading}>
+              {loading ? 'Đang xử lý...' : 'Gia hạn ngay'}
+            </button>
+          </>
+        )}
+        {step === 'payment' && paymentData && (
+          <PaymentStep
+            data={paymentData}
+            onSuccess={handleClose}
+          />
+        )}
+      </div>
+    </Modal>
+  )
+}
+```
+
+---
+
+## BƯỚC 4: FIX VIỆC HIỂN THỊ MODAL TRONG APP
+
+Trong file quản lý state chính (App.tsx hoặc DashboardLayout):
+- KHÔNG render modal bên trong điều kiện lồng nhau phức tạp
+- Dùng pattern đơn giản:
+
+```tsx
+// Đúng — đặt modal ở cấp cao nhất của component
+function DashboardLayout() {
+  const [showExpiredModal, setShowExpiredModal] = useState(false)
+
+  // Khi API trả 403 SUBSCRIPTION_EXPIRED
+  // → setShowExpiredModal(true)
+
+  return (
+    <>
+      {/* ... nội dung dashboard ... */}
+
+      {/* Modal đặt NGOÀI mọi div khác, ở cuối */}
+      <SubscriptionExpiredModal
+        isOpen={showExpiredModal}
+        onClose={() => setShowExpiredModal(false)}
+        studioId={currentStudio.id}
+      />
+    </>
+  )
+}
+```
+
+---
+
+## BƯỚC 5: KIỂM TRA VÀ XÓA CÁC ANTI-PATTERN
+
+Tìm và xóa/sửa các pattern sau nếu có trong code mới thêm:
+
+❌ SAI — tạo element mà không cleanup đúng:
+```tsx
+useEffect(() => {
+  const el = document.createElement('div')
+  document.body.appendChild(el)
+  // Thiếu cleanup hoặc cleanup sai
+}, [])
+```
+
+❌ SAI — dùng document.body.innerHTML:
+```tsx
+document.body.innerHTML = '' // Hủy toàn bộ React tree
+```
+
+❌ SAI — render modal trong điều kiện phức tạp:
+```tsx
+{isExpired && someOtherCondition && data?.status === 'x' && <Modal />}
+```
+
+✅ ĐÚNG — luôn mount Modal, điều khiển bằng prop isOpen:
+```tsx
+<Modal isOpen={isExpired} onClose={...} />
+```
+
+---
+
+## BƯỚC 6: KIỂM TRA SAU KHI SỬA
+
+Sau khi refactor xong, test các case:
+1. Mở modal → nhấn Esc → không lỗi, modal đóng mượt
+2. Mở modal → click backdrop → không lỗi, modal đóng mượt
+3. Mở modal → navigate sang trang khác → không lỗi
+4. Reload trang → không có màn hình trắng
+
+Nếu vẫn còn lỗi sau khi sửa, hãy paste full error stack trace để debug tiếp.
