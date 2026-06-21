@@ -20,11 +20,12 @@ type OrderData = {
 type Props = {
   open: boolean;
   onPaid: () => void;
+  onClose?: () => void;
   title?: string;
   description?: string;
 };
 
-export function SubscriptionExpiredModal({ open, onPaid, title, description }: Props) {
+export function SubscriptionExpiredModal({ open, onPaid, onClose, title, description }: Props) {
   const [tab, setTab] = useState<"info" | "payment">("info");
   const [isCreatingOrder, setIsCreatingOrder] = useState(false);
   const [orderData, setOrderData] = useState<OrderData | null>(null);
@@ -121,8 +122,8 @@ export function SubscriptionExpiredModal({ open, onPaid, title, description }: P
   };
 
   return (
-    <Dialog open={open} modal>
-      <DialogContent className="sm:max-w-md" onPointerDownOutside={e => e.preventDefault()}>
+    <Dialog open={open} onOpenChange={(isOpen) => { if (!isOpen && onClose) onClose(); }}>
+      <DialogContent className="sm:max-w-md" onPointerDownOutside={e => { if (!onClose) e.preventDefault(); }}>
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 font-serif">
             <AlertTriangle className="h-5 w-5 text-amber-500" />

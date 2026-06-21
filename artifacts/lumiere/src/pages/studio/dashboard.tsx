@@ -27,6 +27,7 @@ export default function StudioDashboard() {
       <SubscriptionExpiredModal
         open={paymentOpen}
         onPaid={() => { setPaymentOpen(false); window.location.reload(); }}
+        onClose={() => setPaymentOpen(false)}
         title="Mua / Gia hạn thuê bao"
         description="Thanh toán 1 tháng để kích hoạt hoặc gia hạn tài khoản Lumière Studio."
       />
