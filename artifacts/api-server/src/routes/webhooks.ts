@@ -29,7 +29,7 @@ router.post("/webhooks/payos", async (req, res): Promise<void> => {
 
     if (webhookData.code !== "00") return;
 
-    const orderCode = Number(webhookData.data.orderCode);
+    const orderCode = Number(webhookData.orderCode);
 
     const [payment] = await db
       .select()
