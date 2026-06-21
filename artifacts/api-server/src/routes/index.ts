@@ -21,11 +21,8 @@ router.use(webhooksRouter);
 
 router.use("/studio/payment", paymentRouter);
 
-router.use(
-  ["/studios", "/studios/*splat", "/drive", "/drive/*splat"],
-  checkSubscription
-);
-
+router.use("/studios", checkSubscription);
+router.use("/drive", checkSubscription);
 router.use("/studio/subscription-info", checkSubscription);
 
 router.use(studiosRouter);
