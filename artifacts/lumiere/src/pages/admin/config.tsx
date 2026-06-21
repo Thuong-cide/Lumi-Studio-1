@@ -57,6 +57,10 @@ export default function AdminConfig() {
   const [showPayosChecksumKey, setShowPayosChecksumKey] = useState(false);
   const [isSavingPrice, setIsSavingPrice] = useState(false);
   const [isSavingPayos, setIsSavingPayos] = useState(false);
+  const [discount3m, setDiscount3m] = useState("0");
+  const [discount6m, setDiscount6m] = useState("0");
+  const [discount12m, setDiscount12m] = useState("0");
+  const [isSavingDiscounts, setIsSavingDiscounts] = useState(false);
 
   const suggestedRedirectUri = `${window.location.origin}/api/auth/google/callback`;
 
@@ -81,6 +85,9 @@ export default function AdminConfig() {
       setMonthlyPrice(settingsJson.settings?.monthly_price || "299000");
       setTrialDays(settingsJson.settings?.trial_days || "15");
       setPayosClientId(settingsJson.settings?.payos_client_id || "");
+      setDiscount3m(settingsJson.settings?.discount_3m || "0");
+      setDiscount6m(settingsJson.settings?.discount_6m || "0");
+      setDiscount12m(settingsJson.settings?.discount_12m || "0");
     }).catch(() => {
       setRedirectUri(suggestedRedirectUri);
     }).finally(() => setIsLoading(false));
@@ -185,6 +192,32 @@ export default function AdminConfig() {
       toast({ title: "Lỗi", description: msg, variant: "destructive" });
     } finally {
       setIsSavingTrialDays(false);
+    }
+  };
+
+  const handleSaveDiscounts = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const vals = [
+      { key: "discount_3m", val: discount3m },
+      { key: "discount_6m", val: discount6m },
+      { key: "discount_12m", val: discount12m },
+    ];
+    for (const v of vals) {
+      const n = parseInt(v.val, 10);
+      if (isNaN(n) || n < 0 || n > 90) {
+        toast({ title: "Lỗi", description: "Chiết khấu phải từ 0% đến 90%", variant: "destructive" });
+        return;
+      }
+    }
+    setIsSavingDiscounts(true);
+    try {
+      await Promise.all(vals.map(v => saveSettingKey(v.key, String(parseInt(v.val, 10)))));
+      toast({ title: "Đã lưu!", description: "Chiết khấu theo gói đã được cập nhật." });
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "Lỗi kết nối";
+      toast({ title: "Lỗi", description: msg, variant: "destructive" });
+    } finally {
+      setIsSavingDiscounts(false);
     }
   };
 
@@ -317,6 +350,49 @@ export default function AdminConfig() {
               </div>
               <Button type="submit" disabled={isSavingTrialDays} variant="outline">
                 {isSavingTrialDays ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Đang lưu...</> : "Lưu cài đặt"}
+              </Button>
+            </form>
+          </CardContent>
+        </Card>
+
+        {/* Chiết khấu theo gói */}
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base font-medium">Chiết khấu theo gói</CardTitle>
+            <CardDescription>Đặt % giảm giá cho gói dài hạn. Để 0 nếu không giảm giá.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <form onSubmit={handleSaveDiscounts} className="space-y-4">
+              <div className="grid grid-cols-3 gap-3">
+                {[
+                  { label: "3 tháng", state: discount3m, setState: setDiscount3m },
+                  { label: "6 tháng", state: discount6m, setState: setDiscount6m },
+                  { label: "1 năm", state: discount12m, setState: setDiscount12m },
+                ].map(({ label, state, setState }) => (
+                  <div key={label} className="space-y-1.5">
+                    <Label className="text-sm">{label}</Label>
+                    <div className="relative">
+                      <Input
+                        type="number"
+                        min="0"
+                        max="90"
+                        value={state}
+                        onChange={e => setState(e.target.value)}
+                        className="pr-8 text-center"
+                      />
+                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">%</span>
+                    </div>
+                    {parseInt(state) > 0 && (
+                      <p className="text-xs text-green-600 font-medium text-center">-{state}% off</p>
+                    )}
+                  </div>
+                ))}
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Giá gói 3 tháng = giá tháng × 3 × (1 – chiết khấu%), tương tự cho các gói khác.
+              </p>
+              <Button type="submit" disabled={isSavingDiscounts} variant="outline">
+                {isSavingDiscounts ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Đang lưu...</> : "Lưu chiết khấu"}
               </Button>
             </form>
           </CardContent>

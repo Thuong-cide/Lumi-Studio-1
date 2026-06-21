@@ -13,9 +13,51 @@ async function getSetting(key: string): Promise<string> {
   return row?.value ?? "";
 }
 
+async function getPricingConfig() {
+  const allRows = await db.select().from(settingsTable);
+  const map: Record<string, string> = {};
+  for (const r of allRows) map[r.key] = r.value ?? "";
+  return {
+    monthlyPrice: parseInt(map["monthly_price"] || "299000", 10),
+    discount3m: parseInt(map["discount_3m"] || "0", 10),
+    discount6m: parseInt(map["discount_6m"] || "0", 10),
+    discount12m: parseInt(map["discount_12m"] || "0", 10),
+  };
+}
+
+function calcAmount(monthlyPrice: number, months: number, discountPct: number): number {
+  const raw = monthlyPrice * months;
+  return Math.round(raw * (1 - discountPct / 100));
+}
+
+router.get("/studio/pricing", async (req, res): Promise<void> => {
+  try {
+    requireAuth(req, "STUDIO");
+    const cfg = await getPricingConfig();
+    res.json({
+      monthlyPrice: cfg.monthlyPrice,
+      plans: [
+        { months: 1, label: "1 tháng", discountPct: 0, amount: calcAmount(cfg.monthlyPrice, 1, 0) },
+        { months: 3, label: "3 tháng", discountPct: cfg.discount3m, amount: calcAmount(cfg.monthlyPrice, 3, cfg.discount3m) },
+        { months: 6, label: "6 tháng", discountPct: cfg.discount6m, amount: calcAmount(cfg.monthlyPrice, 6, cfg.discount6m) },
+        { months: 12, label: "1 năm", discountPct: cfg.discount12m, amount: calcAmount(cfg.monthlyPrice, 12, cfg.discount12m) },
+      ],
+    });
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : "Server error";
+    res.status(getErrorStatus(msg)).json({ error: msg });
+  }
+});
+
 router.post("/studio/payment/create-order", async (req, res): Promise<void> => {
   try {
     const payload = requireAuth(req, "STUDIO");
+
+    const months = Number(req.body?.months) || 1;
+    if (![1, 3, 6, 12].includes(months)) {
+      res.status(400).json({ error: "Gói không hợp lệ" });
+      return;
+    }
 
     let payos;
     try {
@@ -29,8 +71,9 @@ router.post("/studio/payment/create-order", async (req, res): Promise<void> => {
       throw e;
     }
 
-    const amountStr = await getSetting("monthly_price");
-    const amount = parseInt(amountStr || "299000", 10);
+    const cfg = await getPricingConfig();
+    const discountMap: Record<number, number> = { 1: 0, 3: cfg.discount3m, 6: cfg.discount6m, 12: cfg.discount12m };
+    const amount = calcAmount(cfg.monthlyPrice, months, discountMap[months]);
 
     let orderCode: number;
     let isUnique = false;
@@ -59,7 +102,7 @@ router.post("/studio/payment/create-order", async (req, res): Promise<void> => {
       payosOrderCode: orderCode,
       transferContent,
       status: "pending",
-      months: 1,
+      months,
     });
 
     res.json({
@@ -68,6 +111,7 @@ router.post("/studio/payment/create-order", async (req, res): Promise<void> => {
       transferContent,
       amount,
       orderCode,
+      months,
     });
   } catch (e: unknown) {
     logger.error(e, "[CREATE PAYMENT ORDER]");

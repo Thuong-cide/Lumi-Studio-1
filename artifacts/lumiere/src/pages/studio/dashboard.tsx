@@ -1,36 +1,26 @@
-import { useState } from "react";
 import { useGetMe, getGetMeQueryKey, useListAlbums, getListAlbumsQueryKey } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Link } from "wouter";
-import { motion } from "framer-motion";
 import { Image as ImageIcon, Plus, ArrowRight } from "lucide-react";
 import { format } from "date-fns";
 import { SubscriptionBanner } from "@/components/subscription/SubscriptionBanner";
-import { SubscriptionExpiredModal } from "@/components/subscription/SubscriptionExpiredModal";
+import { useSubscription } from "@/hooks/use-subscription";
 
 export default function StudioDashboard() {
   const { data: me } = useGetMe({ query: { queryKey: getGetMeQueryKey() } });
   const { data: albumsData, isLoading } = useListAlbums({
     query: { queryKey: getListAlbumsQueryKey() }
   });
-  const [paymentOpen, setPaymentOpen] = useState(false);
+  const { openPaymentModal } = useSubscription();
 
   const albums = albumsData?.albums || [];
   const recentAlbums = albums.slice(0, 3);
 
   return (
     <div className="space-y-6">
-      <SubscriptionBanner onPaymentRequest={() => setPaymentOpen(true)} />
-
-      <SubscriptionExpiredModal
-        open={paymentOpen}
-        onPaid={() => { setPaymentOpen(false); window.location.reload(); }}
-        onClose={() => setPaymentOpen(false)}
-        title="Mua / Gia hạn thuê bao"
-        description="Thanh toán 1 tháng để kích hoạt hoặc gia hạn tài khoản Lumière Studio."
-      />
+      <SubscriptionBanner onPaymentRequest={openPaymentModal} />
 
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>

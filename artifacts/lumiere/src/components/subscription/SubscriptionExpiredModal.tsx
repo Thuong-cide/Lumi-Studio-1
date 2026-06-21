@@ -3,11 +3,21 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "@/hooks/use-toast";
-import { Loader2, Copy, CheckCircle2, AlertTriangle, ExternalLink } from "lucide-react";
-import { format } from "date-fns";
-import { vi } from "date-fns/locale";
+import { Loader2, Copy, CheckCircle2, AlertTriangle, ExternalLink, CreditCard } from "lucide-react";
 
 type PaymentStatus = "pending" | "paid" | "cancelled";
+
+type Plan = {
+  months: number;
+  label: string;
+  discountPct: number;
+  amount: number;
+};
+
+type PricingData = {
+  monthlyPrice: number;
+  plans: Plan[];
+};
 
 type OrderData = {
   qrCode: string;
@@ -15,6 +25,7 @@ type OrderData = {
   transferContent: string;
   amount: number;
   orderCode: number;
+  months: number;
 };
 
 type Props = {
@@ -22,11 +33,12 @@ type Props = {
   onPaid: () => void;
   onClose?: () => void;
   title?: string;
-  description?: string;
 };
 
-export function SubscriptionExpiredModal({ open, onPaid, onClose, title, description }: Props) {
-  const [tab, setTab] = useState<"info" | "payment">("info");
+export function SubscriptionExpiredModal({ open, onPaid, onClose, title }: Props) {
+  const [tab, setTab] = useState<"plans" | "payment">("plans");
+  const [selectedMonths, setSelectedMonths] = useState<number>(1);
+  const [pricing, setPricing] = useState<PricingData | null>(null);
   const [isCreatingOrder, setIsCreatingOrder] = useState(false);
   const [orderData, setOrderData] = useState<OrderData | null>(null);
   const [paymentStatus, setPaymentStatus] = useState<PaymentStatus>("pending");
@@ -34,10 +46,16 @@ export function SubscriptionExpiredModal({ open, onPaid, onClose, title, descrip
   const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
-    if (!open) {
-      setTab("info");
+    if (open) {
+      fetch("/api/studio/pricing")
+        .then(r => r.ok ? r.json() : null)
+        .then(data => { if (data) setPricing(data); })
+        .catch(() => {});
+    } else {
+      setTab("plans");
       setOrderData(null);
       setPaymentStatus("pending");
+      setSelectedMonths(1);
       if (pollingRef.current) {
         clearInterval(pollingRef.current);
         pollingRef.current = null;
@@ -76,12 +94,13 @@ export function SubscriptionExpiredModal({ open, onPaid, onClose, title, descrip
     };
   }, [orderData, paymentStatus, onPaid]);
 
-  const handleRenew = async () => {
+  const handleCreateOrder = async () => {
     setIsCreatingOrder(true);
     try {
       const res = await fetch("/api/studio/payment/create-order", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ months: selectedMonths }),
       });
       const data = await res.json();
 
@@ -117,37 +136,80 @@ export function SubscriptionExpiredModal({ open, onPaid, onClose, title, descrip
     }
   };
 
-  const formatAmount = (amount: number) => {
-    return new Intl.NumberFormat("vi-VN").format(amount) + " ₫";
-  };
+  const fmt = (amount: number) => new Intl.NumberFormat("vi-VN").format(amount) + " ₫";
+
+  const selectedPlan = pricing?.plans.find(p => p.months === selectedMonths);
 
   return (
     <Dialog open={open} onOpenChange={(isOpen) => { if (!isOpen && onClose) onClose(); }}>
       <DialogContent className="sm:max-w-md" onPointerDownOutside={e => { if (!onClose) e.preventDefault(); }}>
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 font-serif">
-            <AlertTriangle className="h-5 w-5 text-amber-500" />
-            {title ?? "Tài khoản hết hạn"}
+            <CreditCard className="h-5 w-5 text-primary" />
+            {title ?? "Mua / Gia hạn thuê bao"}
           </DialogTitle>
         </DialogHeader>
 
-        {tab === "info" && (
+        {tab === "plans" && (
           <div className="space-y-4">
-            <p className="text-muted-foreground text-sm">
-              {description ?? "Thời gian sử dụng của tài khoản đã hết. Vui lòng gia hạn để tiếp tục sử dụng dịch vụ Lumière Studio."}
-            </p>
-            <div className="rounded-lg border bg-muted/30 p-4 space-y-2 text-sm">
-              <div className="flex items-center gap-2">
-                <span className="text-muted-foreground">Thanh toán 1 tháng, hệ thống tự động kích hoạt ngay</span>
+            {!pricing ? (
+              <div className="flex justify-center py-8">
+                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
               </div>
-            </div>
-            <Button className="w-full" onClick={handleRenew} disabled={isCreatingOrder}>
-              {isCreatingOrder ? (
-                <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Đang tạo đơn...</>
-              ) : (
-                "Gia hạn ngay"
-              )}
-            </Button>
+            ) : (
+              <>
+                <p className="text-sm text-muted-foreground">Chọn gói phù hợp. Hệ thống tự động kích hoạt sau khi nhận thanh toán.</p>
+
+                <div className="grid grid-cols-2 gap-2.5">
+                  {pricing.plans.map((plan) => {
+                    const isSelected = selectedMonths === plan.months;
+                    const originalAmount = pricing.monthlyPrice * plan.months;
+                    const hasSaving = plan.discountPct > 0;
+                    return (
+                      <button
+                        key={plan.months}
+                        type="button"
+                        onClick={() => setSelectedMonths(plan.months)}
+                        className={`relative rounded-xl border-2 p-3.5 text-left transition-all ${
+                          isSelected
+                            ? "border-primary bg-primary/5"
+                            : "border-border hover:border-primary/40 hover:bg-muted/30"
+                        }`}
+                      >
+                        {hasSaving && (
+                          <span className="absolute -top-2 right-2 rounded-full bg-green-500 px-1.5 py-0.5 text-[10px] font-bold text-white leading-tight">
+                            -{plan.discountPct}%
+                          </span>
+                        )}
+                        <div className="font-semibold text-sm text-foreground">{plan.label}</div>
+                        <div className="mt-1 font-bold text-primary">{fmt(plan.amount)}</div>
+                        {hasSaving && (
+                          <div className="text-[11px] text-muted-foreground line-through">{fmt(originalAmount)}</div>
+                        )}
+                        {hasSaving && (
+                          <div className="text-[11px] text-green-600 font-medium">Tiết kiệm {fmt(originalAmount - plan.amount)}</div>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {selectedPlan && (
+                  <div className="rounded-lg border bg-muted/30 p-3 text-sm flex items-center justify-between">
+                    <span className="text-muted-foreground">Tổng thanh toán:</span>
+                    <span className="font-bold text-primary text-base">{fmt(selectedPlan.amount)}</span>
+                  </div>
+                )}
+
+                <Button className="w-full" onClick={handleCreateOrder} disabled={isCreatingOrder}>
+                  {isCreatingOrder ? (
+                    <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Đang tạo đơn...</>
+                  ) : (
+                    "Tiếp tục thanh toán"
+                  )}
+                </Button>
+              </>
+            )}
           </div>
         )}
 
@@ -189,6 +251,10 @@ export function SubscriptionExpiredModal({ open, onPaid, onClose, title, descrip
 
                 <div className="rounded-lg border bg-muted/30 p-3 space-y-2.5 text-sm">
                   <div className="flex items-center justify-between">
+                    <span className="text-muted-foreground">Gói:</span>
+                    <span className="font-medium">{pricing?.plans.find(p => p.months === orderData.months)?.label ?? `${orderData.months} tháng`}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
                     <span className="text-muted-foreground">Nội dung CK:</span>
                     <div className="flex items-center gap-1.5">
                       <span className="font-bold font-mono">{orderData.transferContent}</span>
@@ -203,7 +269,7 @@ export function SubscriptionExpiredModal({ open, onPaid, onClose, title, descrip
                   </div>
                   <div className="flex items-center justify-between">
                     <span className="text-muted-foreground">Số tiền:</span>
-                    <span className="font-semibold text-primary">{formatAmount(orderData.amount)}</span>
+                    <span className="font-semibold text-primary">{fmt(orderData.amount)}</span>
                   </div>
                 </div>
 
@@ -212,8 +278,8 @@ export function SubscriptionExpiredModal({ open, onPaid, onClose, title, descrip
                   Chuyển khoản đúng nội dung, hệ thống tự động kích hoạt trong vài giây
                 </div>
 
-                <Button variant="outline" size="sm" className="w-full" onClick={() => setTab("info")}>
-                  Quay lại
+                <Button variant="outline" size="sm" className="w-full" onClick={() => setTab("plans")}>
+                  Quay lại chọn gói
                 </Button>
               </>
             )}
