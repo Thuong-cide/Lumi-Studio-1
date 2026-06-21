@@ -1,0 +1,168 @@
+App đang chạy tốt trên production nhưng thiếu 2 route quan trọng:
+1. GET /health — để verify server đang sống
+2. POST /api/webhooks/payos — để nhận webhook từ PayOS
+
+Hãy tìm file entry point chính của api-server (thường là
+artifacts/api-server/src/index.ts hoặc server.ts hoặc app.ts)
+và thực hiện các bước sau:
+
+---
+
+## BƯỚC 1: TÌM FILE ENTRY POINT
+
+Tìm file có chứa app.listen() hoặc createServer() trong artifacts/api-server/src/
+Đó là file cần sửa.
+
+---
+
+## BƯỚC 2: THÊM HEALTH CHECK
+
+Trong file entry point đó, thêm route /health NGAY SAU khi khởi tạo app,
+TRƯỚC tất cả các route khác:
+
+```typescript
+// Health check — không cần auth
+app.get('/health', (_req, res) => {
+  res.json({ status: 'ok', timestamp: new Date().toISOString() })
+})
+```
+
+---
+
+## BƯỚC 3: KIỂM TRA VÀ ĐẢM BẢO WEBHOOK ROUTE ĐÚNG VỊ TRÍ
+
+Tìm trong codebase xem route POST /api/webhooks/payos đã tồn tại chưa.
+
+Nếu đã có — kiểm tra nó có đang bị chặn bởi auth middleware không.
+Cấu trúc đúng phải là:
+
+```typescript
+app.use(express.json())                              // 1. JSON parser — ĐẦU TIÊN
+app.use('/health', healthRouter)                     // 2. Health check
+app.use('/api/webhooks/payos', webhookPayosRouter)   // 3. Webhook — KHÔNG có auth
+app.use('/api/auth', authRouter)                     // 4. Auth routes
+app.use('/api/admin', requireAdminAuth, adminRouter) // 5. Routes cần auth
+app.use('/api/studio', requireStudioAuth, studioRouter)
+```
+
+Nếu chưa có webhook route — tạo file
+artifacts/api-server/src/routes/webhook-payos.ts:
+
+```typescript
+import { Router } from 'express'
+import PayOS from '@payos/node'
+import { db } from '@workspace/db'
+import { payments, studios, settings } from '@workspace/db/schema'
+import { eq } from 'drizzle-orm'
+import { addDays } from 'date-fns'
+
+const router = Router()
+
+async function getPayosInstance() {
+  const rows = await db.select().from(settings)
+  const map = Object.fromEntries(rows.map(r => [r.key, r.value]))
+  const clientId    = map['payos_client_id']    ?? ''
+  const apiKey      = map['payos_api_key']       ?? ''
+  const checksumKey = map['payos_checksum_key']  ?? ''
+  if (!clientId || !apiKey || !checksumKey) {
+    throw new Error('PayOS chưa được cấu hình')
+  }
+  return new PayOS({ clientId, apiKey, checksumKey })
+}
+
+router.post('/', (req, res) => {
+  console.log('[WEBHOOK] Nhận request:', new Date().toISOString())
+  console.log('[WEBHOOK] Body:', JSON.stringify(req.body))
+
+  // Trả 200 NGAY — bắt buộc theo PayOS docs
+  res.status(200).json({ success: true })
+
+  // Xử lý bất đồng bộ sau khi đã trả response
+  setImmediate(async () => {
+    try {
+      if (!req.body || Object.keys(req.body).length === 0) {
+        console.error('[WEBHOOK] Body rỗng')
+        return
+      }
+
+      const payos = await getPayosInstance()
+      const webhookData = payos.webhooks.verify(req.body)
+
+      console.log('[WEBHOOK] Verify OK, code:', webhookData.code)
+
+      if (webhookData.code !== '00') return
+
+      const orderCode = Number(webhookData.data?.orderCode)
+      if (!orderCode) return
+
+      const [payment] = await db
+        .select()
+        .from(payments)
+        .where(eq(payments.payosOrderCode, orderCode))
+
+      if (!payment) {
+        console.error('[WEBHOOK] Không tìm thấy payment:', orderCode)
+        return
+      }
+
+      if (payment.status === 'paid') {
+        console.log('[WEBHOOK] Đã xử lý rồi, bỏ qua')
+        return
+      }
+
+      await db
+        .update(payments)
+        .set({ status: 'paid', paidAt: new Date() })
+        .where(eq(payments.id, payment.id))
+
+      const [studio] = await db
+        .select()
+        .from(studios)
+        .where(eq(studios.id, payment.studioId))
+
+      if (!studio) return
+
+      const daysToAdd = (payment.months ?? 1) * 30
+      const baseDate =
+        studio.status === 'active' &&
+        studio.subscriptionExpiresAt &&
+        studio.subscriptionExpiresAt > new Date()
+          ? studio.subscriptionExpiresAt
+          : new Date()
+
+      await db
+        .update(studios)
+        .set({
+          status: 'active',
+          subscriptionExpiresAt: addDays(baseDate, daysToAdd),
+        })
+        .where(eq(studios.id, studio.id))
+
+      console.log(`[WEBHOOK] Studio ${studio.id} gia hạn đến ${addDays(baseDate, daysToAdd).toISOString()}`)
+
+    } catch (err) {
+      console.error('[WEBHOOK] Lỗi:', err)
+    }
+  })
+})
+
+export default router
+```
+
+---
+
+## BƯỚC 4: SAU KHI SỬA XONG
+
+Redeploy app (bấm Publish → Deploy lại trên Replit).
+
+Sau khi deploy xong, kiểm tra 2 URL này:
+
+1. GET https://lumi-studio-1--huywintranqlzi1.replit.app/health
+   → Phải trả về: {"status":"ok","timestamp":"..."}
+
+2. POST https://lumi-studio-1--huywintranqlzi1.replit.app/api/webhooks/payos
+   Body: {}
+   → Phải trả về: {"success":true} (không phải 404)
+
+Nếu cả 2 đều OK → vào my.payos.vn đăng ký webhook URL:
+https://lumi-studio-1--huywintranqlzi1.replit.app/api/webhooks/payos
