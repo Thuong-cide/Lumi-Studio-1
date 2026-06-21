@@ -25,7 +25,7 @@ async function getPayosClient() {
     throw new Error("PAYOS_NOT_CONFIGURED");
   }
 
-  const PayOS = (await import("@payos/node")).default;
+  const { PayOS } = await import("@payos/node");
   return new PayOS(clientId, apiKey, checksumKey);
 }
 
