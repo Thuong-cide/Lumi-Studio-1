@@ -38,11 +38,12 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 
-type ExpiryTarget = { id: string; name: string; expiresAt?: string | null };
+type StudioStatus = "trial" | "active" | "expired" | "disabled" | "PENDING" | "APPROVED" | "DISABLED";
+type ExpiryTarget = { id: string; name: string; status: StudioStatus; trialEndsAt?: string | null; subscriptionExpiresAt?: string | null };
 
-function ExpiryBadge({ expiresAt }: { expiresAt?: string | null }) {
-  if (!expiresAt) return null;
-  const date = new Date(expiresAt);
+function ExpiryBadge({ dateStr }: { dateStr?: string | null }) {
+  if (!dateStr) return null;
+  const date = new Date(dateStr);
   if (!isValid(date)) return null;
   const expired = isPast(date);
   const daysLeft = differenceInDays(date, new Date());
@@ -54,7 +55,7 @@ function ExpiryBadge({ expiresAt }: { expiresAt?: string | null }) {
       </Badge>
     );
   }
-  if (daysLeft <= 14) {
+  if (daysLeft <= 7) {
     return (
       <Badge className="text-xs gap-1 bg-orange-500 hover:bg-orange-500/80 text-white">
         <CalendarClock className="h-3 w-3" />
@@ -68,6 +69,16 @@ function ExpiryBadge({ expiresAt }: { expiresAt?: string | null }) {
       Hạn đến {format(date, "dd/MM/yyyy")}
     </Badge>
   );
+}
+
+function StatusBadge({ status }: { status: StudioStatus }) {
+  if (status === "trial") return <Badge className="text-xs bg-amber-100 text-amber-800 border-amber-300 hover:bg-amber-100">Dùng thử</Badge>;
+  if (status === "active") return <Badge className="text-xs bg-green-100 text-green-800 border-green-300 hover:bg-green-100">Đang hoạt động</Badge>;
+  if (status === "expired") return <Badge variant="destructive" className="text-xs">Hết hạn</Badge>;
+  if (status === "disabled" || status === "DISABLED") return <Badge variant="destructive" className="text-xs">Đã khóa</Badge>;
+  if (status === "APPROVED") return <Badge className="text-xs bg-green-100 text-green-800 border-green-300 hover:bg-green-100">Đã duyệt</Badge>;
+  if (status === "PENDING") return <Badge variant="secondary" className="text-xs bg-accent/20 text-accent">Chờ duyệt</Badge>;
+  return <Badge variant="outline" className="text-xs">{status}</Badge>;
 }
 
 export default function AdminStudios() {
@@ -111,11 +122,13 @@ export default function AdminStudios() {
     if (!expiryTarget) return;
     setSavingExpiry(true);
     try {
+      const isTrial = expiryTarget.status === "trial";
+      const fieldKey = isTrial ? "trialEndsAt" : "subscriptionExpiresAt";
       const res = await fetch(`/api/admin/studios/${expiryTarget.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({ expiresAt: expiryDate ? new Date(expiryDate).toISOString() : null }),
+        body: JSON.stringify({ [fieldKey]: expiryDate ? new Date(expiryDate).toISOString() : null }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Lỗi server");
@@ -132,6 +145,23 @@ export default function AdminStudios() {
       toast({ title: "Lỗi", description: e instanceof Error ? e.message : "Có lỗi xảy ra", variant: "destructive" });
     } finally {
       setSavingExpiry(false);
+    }
+  };
+
+  const handleRestoreStudio = async (studioId: string) => {
+    try {
+      const res = await fetch(`/api/admin/studios/${studioId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ status: "restore" }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Lỗi server");
+      toast({ title: "Đã mở khoá studio", description: `Trạng thái đã được khôi phục: ${data.studio?.status ?? ""}` });
+      queryClient.invalidateQueries({ queryKey: getListAdminStudiosQueryKey(queryParams) });
+    } catch (e) {
+      toast({ title: "Lỗi", description: e instanceof Error ? e.message : "Có lỗi xảy ra", variant: "destructive" });
     }
   };
 
@@ -201,17 +231,13 @@ export default function AdminStudios() {
                     <div>
                       <div className="flex items-center flex-wrap gap-2">
                         <h3 className="font-serif font-bold text-lg">{studio.name}</h3>
-                        <Badge variant={
-                          studio.status === "APPROVED" ? "default" :
-                          studio.status === "PENDING" ? "secondary" : "destructive"
-                        } className={
-                          studio.status === "APPROVED" ? "bg-success hover:bg-success/80 text-white" :
-                          studio.status === "PENDING" ? "bg-accent/20 text-accent" : ""
-                        }>
-                          {studio.status === "APPROVED" ? "Đã duyệt" :
-                           studio.status === "PENDING" ? "Chờ duyệt" : "Đã khóa"}
-                        </Badge>
-                        <ExpiryBadge expiresAt={studio.expiresAt} />
+                        <StatusBadge status={studio.status as StudioStatus} />
+                        {studio.status === "trial" && (
+                          <ExpiryBadge dateStr={(studio as unknown as { trialEndsAt?: string | null }).trialEndsAt} />
+                        )}
+                        {(studio.status === "active" || studio.status === "APPROVED") && (
+                          <ExpiryBadge dateStr={(studio as unknown as { subscriptionExpiresAt?: string | null }).subscriptionExpiresAt} />
+                        )}
                       </div>
                       <div className="mt-1 text-sm text-muted-foreground space-x-4">
                         <span>{studio.email}</span>
@@ -237,13 +263,19 @@ export default function AdminStudios() {
                       <DropdownMenuContent align="end">
                         <DropdownMenuLabel>Hành động</DropdownMenuLabel>
                         <DropdownMenuSeparator />
-                        {studio.status !== "APPROVED" && (
+                        {(studio.status === "disabled" || studio.status === "DISABLED" || studio.status === "expired") && (
+                          <DropdownMenuItem onClick={() => handleRestoreStudio(studio.id)}>
+                            <Check className="mr-2 h-4 w-4 text-success" />
+                            Mở khoá (khôi phục trạng thái)
+                          </DropdownMenuItem>
+                        )}
+                        {studio.status === "PENDING" && (
                           <DropdownMenuItem onClick={() => handleUpdateStatus(studio.id, "APPROVED")}>
                             <Check className="mr-2 h-4 w-4 text-success" />
                             Phê duyệt
                           </DropdownMenuItem>
                         )}
-                        {studio.status !== "DISABLED" && (
+                        {studio.status !== "disabled" && studio.status !== "DISABLED" && (
                           <DropdownMenuItem onClick={() => handleUpdateStatus(studio.id, "DISABLED")}>
                             <X className="mr-2 h-4 w-4 text-destructive" />
                             Khóa tài khoản
@@ -251,10 +283,16 @@ export default function AdminStudios() {
                         )}
                         <DropdownMenuSeparator />
                         <DropdownMenuItem onClick={() => {
-                          const current = studio.expiresAt
-                            ? new Date(studio.expiresAt).toISOString().slice(0, 10)
-                            : "";
-                          setExpiryTarget({ id: studio.id, name: studio.name, expiresAt: studio.expiresAt });
+                          const s = studio as unknown as { trialEndsAt?: string | null; subscriptionExpiresAt?: string | null };
+                          const relevantDate = studio.status === "trial" ? s.trialEndsAt : s.subscriptionExpiresAt;
+                          const current = relevantDate ? new Date(relevantDate).toISOString().slice(0, 10) : "";
+                          setExpiryTarget({
+                            id: studio.id,
+                            name: studio.name,
+                            status: studio.status as StudioStatus,
+                            trialEndsAt: s.trialEndsAt,
+                            subscriptionExpiresAt: s.subscriptionExpiresAt,
+                          });
                           setExpiryDate(current);
                         }}>
                           <CalendarClock className="mr-2 h-4 w-4" />
@@ -288,8 +326,9 @@ export default function AdminStudios() {
           </DialogHeader>
           <div className="space-y-4 py-2">
             <p className="text-sm text-muted-foreground">
-              Đặt ngày hết hạn cho studio <span className="font-semibold text-foreground">{expiryTarget?.name}</span>.
-              Sau ngày này studio sẽ không thể đăng nhập.
+              Đặt ngày hết hạn {expiryTarget?.status === "trial" ? "dùng thử" : "thuê bao"} cho studio{" "}
+              <span className="font-semibold text-foreground">{expiryTarget?.name}</span>.
+              Sau ngày này, studio sẽ chuyển sang trạng thái <strong>hết hạn</strong>.
             </p>
             <div className="space-y-2">
               <Label htmlFor="expiry-date">Ngày hết hạn</Label>
@@ -310,7 +349,7 @@ export default function AdminStudios() {
                 </p>
               )}
             </div>
-            {expiryTarget?.expiresAt && (
+            {(expiryTarget?.trialEndsAt || expiryTarget?.subscriptionExpiresAt) && (
               <button
                 type="button"
                 className="text-xs text-destructive hover:underline"

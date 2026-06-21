@@ -20,9 +20,11 @@ type OrderData = {
 type Props = {
   open: boolean;
   onPaid: () => void;
+  title?: string;
+  description?: string;
 };
 
-export function SubscriptionExpiredModal({ open, onPaid }: Props) {
+export function SubscriptionExpiredModal({ open, onPaid, title, description }: Props) {
   const [tab, setTab] = useState<"info" | "payment">("info");
   const [isCreatingOrder, setIsCreatingOrder] = useState(false);
   const [orderData, setOrderData] = useState<OrderData | null>(null);
@@ -124,14 +126,14 @@ export function SubscriptionExpiredModal({ open, onPaid }: Props) {
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 font-serif">
             <AlertTriangle className="h-5 w-5 text-amber-500" />
-            Tài khoản hết hạn
+            {title ?? "Tài khoản hết hạn"}
           </DialogTitle>
         </DialogHeader>
 
         {tab === "info" && (
           <div className="space-y-4">
             <p className="text-muted-foreground text-sm">
-              Thời gian sử dụng của tài khoản đã hết. Vui lòng gia hạn để tiếp tục sử dụng dịch vụ Lumière Studio.
+              {description ?? "Thời gian sử dụng của tài khoản đã hết. Vui lòng gia hạn để tiếp tục sử dụng dịch vụ Lumière Studio."}
             </p>
             <div className="rounded-lg border bg-muted/30 p-4 space-y-2 text-sm">
               <div className="flex items-center gap-2">

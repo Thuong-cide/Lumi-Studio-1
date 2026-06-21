@@ -7,7 +7,7 @@ import { getGoogleConfig, invalidateGoogleConfigCache } from "../lib/google-driv
 
 const router = Router();
 
-const SETTINGS_KEYS = ["monthly_price", "payos_client_id", "payos_api_key", "payos_checksum_key"];
+const SETTINGS_KEYS = ["monthly_price", "payos_client_id", "payos_api_key", "payos_checksum_key", "trial_days"];
 
 async function ensureDefaultSettings() {
   const defaults: Record<string, string> = {
@@ -103,11 +103,31 @@ router.patch("/admin/studios/:id", async (req, res): Promise<void> => {
     const patch: Record<string, unknown> = {};
 
     if (status !== undefined) {
-      if (!["trial", "active", "expired", "disabled", "PENDING", "APPROVED", "DISABLED"].includes(status)) {
+      const validStatuses = ["trial", "active", "expired", "disabled", "PENDING", "APPROVED", "DISABLED", "restore"];
+      if (!validStatuses.includes(status)) {
         res.status(400).json({ error: "Trạng thái không hợp lệ" });
         return;
       }
-      patch.status = status;
+      if (status === "restore") {
+        const [existing] = await db.select({
+          trialEndsAt: studiosTable.trialEndsAt,
+          subscriptionExpiresAt: studiosTable.subscriptionExpiresAt,
+        }).from(studiosTable).where(eq(studiosTable.id, id));
+        if (!existing) {
+          res.status(404).json({ error: "Không tìm thấy studio" });
+          return;
+        }
+        const now = new Date();
+        if (existing.trialEndsAt && existing.trialEndsAt > now) {
+          patch.status = "trial";
+        } else if (existing.subscriptionExpiresAt && existing.subscriptionExpiresAt > now) {
+          patch.status = "active";
+        } else {
+          patch.status = "expired";
+        }
+      } else {
+        patch.status = status;
+      }
     }
 
     if (expiresAt !== undefined) patch.expiresAt = expiresAt ? new Date(expiresAt) : null;
