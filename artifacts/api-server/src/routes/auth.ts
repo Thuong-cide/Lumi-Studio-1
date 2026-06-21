@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
-import { studiosTable, adminUsersTable } from "@workspace/db";
+import { studiosTable, adminUsersTable, settingsTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import { signToken, comparePassword, hashPassword, requireAuth, getTokenFromRequest, verifyToken } from "../lib/auth";
 import { getAuthUrl, getTokensFromCode, createFolder } from "../lib/google-drive";
@@ -82,8 +82,11 @@ router.post("/auth/register", async (req, res): Promise<void> => {
       return;
     }
 
+    const [trialDaysSetting] = await db.select().from(settingsTable).where(eq(settingsTable.key, "trial_days"));
+    const trialDays = trialDaysSetting ? parseInt(trialDaysSetting.value, 10) || 15 : 15;
+
     const trialEndsAt = new Date();
-    trialEndsAt.setDate(trialEndsAt.getDate() + 15);
+    trialEndsAt.setDate(trialEndsAt.getDate() + trialDays);
 
     await db.insert(studiosTable).values({
       name: name.trim(),

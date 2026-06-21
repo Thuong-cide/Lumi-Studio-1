@@ -48,6 +48,8 @@ export default function AdminConfig() {
 
   const [settingsData, setSettingsData] = useState<SettingsData | null>(null);
   const [monthlyPrice, setMonthlyPrice] = useState("");
+  const [trialDays, setTrialDays] = useState("15");
+  const [isSavingTrialDays, setIsSavingTrialDays] = useState(false);
   const [payosClientId, setPayosClientId] = useState("");
   const [payosApiKey, setPayosApiKey] = useState("");
   const [payosChecksumKey, setPayosChecksumKey] = useState("");
@@ -77,6 +79,7 @@ export default function AdminConfig() {
 
       setSettingsData(settingsJson);
       setMonthlyPrice(settingsJson.settings?.monthly_price || "299000");
+      setTrialDays(settingsJson.settings?.trial_days || "15");
       setPayosClientId(settingsJson.settings?.payos_client_id || "");
     }).catch(() => {
       setRedirectUri(suggestedRedirectUri);
@@ -162,6 +165,26 @@ export default function AdminConfig() {
       toast({ title: "Lỗi", description: msg, variant: "destructive" });
     } finally {
       setIsSavingPrice(false);
+    }
+  };
+
+  const handleSaveTrialDays = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const days = parseInt(trialDays, 10);
+    if (isNaN(days) || days < 1 || days > 365) {
+      toast({ title: "Lỗi", description: "Số ngày dùng thử phải từ 1 đến 365", variant: "destructive" });
+      return;
+    }
+    setIsSavingTrialDays(true);
+    try {
+      await saveSettingKey("trial_days", String(days));
+      toast({ title: "Đã lưu!", description: `Studio mới đăng ký sẽ có ${days} ngày dùng thử.` });
+      setSettingsData(prev => prev ? { ...prev, settings: { ...prev.settings, trial_days: String(days) } } : null);
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "Lỗi kết nối";
+      toast({ title: "Lỗi", description: msg, variant: "destructive" });
+    } finally {
+      setIsSavingTrialDays(false);
     }
   };
 
@@ -260,6 +283,40 @@ export default function AdminConfig() {
               </div>
               <Button type="submit" disabled={isSavingPrice} variant="outline">
                 {isSavingPrice ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Đang lưu...</> : "Lưu giá"}
+              </Button>
+            </form>
+          </CardContent>
+        </Card>
+
+        {/* Số ngày dùng thử */}
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base font-medium">Thời gian dùng thử</CardTitle>
+            <CardDescription>Số ngày dùng thử miễn phí áp dụng cho studio mới đăng ký</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <form onSubmit={handleSaveTrialDays} className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="trial-days">Số ngày dùng thử</Label>
+                <div className="flex items-center gap-3">
+                  <Input
+                    id="trial-days"
+                    type="number"
+                    min="1"
+                    max="365"
+                    placeholder="15"
+                    value={trialDays}
+                    onChange={e => setTrialDays(e.target.value)}
+                    className="w-32"
+                  />
+                  <span className="text-sm text-muted-foreground">ngày</span>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Studio mới đăng ký sẽ có <strong>{trialDays || "15"} ngày</strong> sử dụng miễn phí trước khi cần thanh toán.
+                </p>
+              </div>
+              <Button type="submit" disabled={isSavingTrialDays} variant="outline">
+                {isSavingTrialDays ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Đang lưu...</> : "Lưu cài đặt"}
               </Button>
             </form>
           </CardContent>
