@@ -1,4 +1,4 @@
-import { createContext, useContext, ReactNode, useEffect, useRef, useState } from "react";
+import { createContext, useContext, ReactNode, useEffect, useRef, useState, useCallback } from "react";
 import { useGetMe, useLogout } from "@workspace/api-client-react";
 import { useLocation } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
@@ -11,6 +11,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { SubscriptionExpiredModal } from "@/components/subscription/SubscriptionExpiredModal";
 
 export type MeUser = {
   id: string;
@@ -23,6 +24,9 @@ export type MeStudio = {
   id: string;
   name: string;
   email: string;
+  status?: string;
+  trialEndsAt?: string | null;
+  subscriptionExpiresAt?: string | null;
   googleDriveConnected: boolean;
   rootFolderId?: string | null;
 };
@@ -36,17 +40,19 @@ type AuthContextType = {
   user: MeData | undefined;
   isLoading: boolean;
   logout: () => void;
+  showSubscriptionModal: () => void;
 };
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const { data: user, isLoading, isError, error } = useGetMe();
+  const { data: user, isLoading, isError, error, refetch } = useGetMe();
   const logoutMutation = useLogout();
   const [, setLocation] = useLocation();
   const queryClient = useQueryClient();
   const wasAuthenticated = useRef(false);
   const [alertMessage, setAlertMessage] = useState<string | null>(null);
+  const [subscriptionExpired, setSubscriptionExpired] = useState(false);
 
   useEffect(() => {
     if (user) {
@@ -59,7 +65,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const apiError = error as { status?: number; data?: { error?: string; code?: string } };
     const msg = apiError.data?.error;
+    const code = apiError.data?.code;
     const status = apiError.status;
+
+    if (status === 403 && code === "SUBSCRIPTION_EXPIRED") {
+      setSubscriptionExpired(true);
+      return;
+    }
 
     wasAuthenticated.current = false;
 
@@ -76,6 +88,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setLocation("/login");
   };
 
+  const handleSubscriptionPaid = useCallback(() => {
+    setSubscriptionExpired(false);
+    queryClient.clear();
+    window.location.reload();
+  }, [queryClient]);
+
+  const showSubscriptionModal = useCallback(() => {
+    setSubscriptionExpired(true);
+  }, []);
+
   const logout = () => {
     logoutMutation.mutate(undefined, {
       onSuccess: () => {
@@ -87,8 +109,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user: user as MeData | undefined, isLoading, logout }}>
+    <AuthContext.Provider value={{ user: user as MeData | undefined, isLoading, logout, showSubscriptionModal }}>
       {children}
+
+      <SubscriptionExpiredModal
+        open={subscriptionExpired}
+        onPaid={handleSubscriptionPaid}
+      />
 
       <AlertDialog open={alertMessage !== null}>
         <AlertDialogContent>
@@ -117,4 +144,20 @@ export function useAuth() {
     throw new Error("useAuth must be used within an AuthProvider");
   }
   return context;
+}
+
+export function useSubscriptionCheck() {
+  const { showSubscriptionModal } = useAuth();
+
+  return useCallback(async (fn: () => Promise<Response>) => {
+    const res = await fn();
+    if (res.status === 403) {
+      const data = await res.clone().json().catch(() => ({}));
+      if (data.code === "SUBSCRIPTION_EXPIRED") {
+        showSubscriptionModal();
+        throw new Error("SUBSCRIPTION_EXPIRED");
+      }
+    }
+    return res;
+  }, [showSubscriptionModal]);
 }

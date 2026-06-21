@@ -17,8 +17,8 @@ router.post("/auth/login", async (req, res): Promise<void> => {
     }
 
     const cookieMaxAge = rememberMe
-      ? 60 * 60 * 24 * 30 * 1000  // 30 ngày
-      : 60 * 60 * 24 * 1 * 1000;  // 1 ngày
+      ? 60 * 60 * 24 * 30 * 1000
+      : 60 * 60 * 24 * 1 * 1000;
 
     const [admin] = await db.select().from(adminUsersTable).where(eq(adminUsersTable.email, email));
     if (admin && (await comparePassword(password, admin.passwordHash))) {
@@ -34,21 +34,19 @@ router.post("/auth/login", async (req, res): Promise<void> => {
       return;
     }
 
-    const [studio] = await db.select().from(studiosTable).where(eq(studiosTable.email, email));
+    const [studio] = await db.select().from(studiosTable).where(eq(studiosTable.email, email.toLowerCase().trim()));
     if (!studio || !(await comparePassword(password, studio.passwordHash))) {
       res.status(401).json({ error: "Email hoặc mật khẩu không đúng" });
       return;
     }
+
+    if (studio.status === "disabled" || studio.status === "DISABLED") {
+      res.status(403).json({ error: "Tài khoản đã bị vô hiệu hóa. Vui lòng liên hệ Admin.", code: "DISABLED" });
+      return;
+    }
+
     if (studio.status === "PENDING") {
       res.status(403).json({ error: "Tài khoản đang chờ phê duyệt từ Admin" });
-      return;
-    }
-    if (studio.status === "DISABLED") {
-      res.status(403).json({ error: "Tài khoản đã bị vô hiệu hóa. Vui lòng liên hệ Admin." });
-      return;
-    }
-    if (studio.expiresAt && studio.expiresAt < new Date()) {
-      res.status(403).json({ error: "Tài khoản đã hết hạn sử dụng. Vui lòng liên hệ Admin để gia hạn." });
       return;
     }
 
@@ -83,14 +81,19 @@ router.post("/auth/register", async (req, res): Promise<void> => {
       res.status(409).json({ error: "Email đã được sử dụng" });
       return;
     }
+
+    const trialEndsAt = new Date();
+    trialEndsAt.setDate(trialEndsAt.getDate() + 15);
+
     await db.insert(studiosTable).values({
       name: name.trim(),
       email: email.toLowerCase().trim(),
       phone: phone?.trim() || null,
       passwordHash: await hashPassword(password),
-      status: "PENDING",
+      status: "trial",
+      trialEndsAt,
     });
-    res.status(201).json({ success: true, message: "Đăng ký thành công! Vui lòng chờ Admin phê duyệt." });
+    res.status(201).json({ success: true, message: "Đăng ký thành công! Bạn có 15 ngày dùng thử miễn phí." });
   } catch (e) {
     req.log.error(e, "[REGISTER]");
     res.status(500).json({ error: "Lỗi server. Vui lòng thử lại." });
@@ -133,6 +136,8 @@ router.get("/auth/me", async (req, res): Promise<void> => {
       name: studiosTable.name,
       email: studiosTable.email,
       status: studiosTable.status,
+      trialEndsAt: studiosTable.trialEndsAt,
+      subscriptionExpiresAt: studiosTable.subscriptionExpiresAt,
       expiresAt: studiosTable.expiresAt,
       googleDriveRefreshToken: studiosTable.googleDriveRefreshToken,
       rootFolderId: studiosTable.rootFolderId,
@@ -146,15 +151,9 @@ router.get("/auth/me", async (req, res): Promise<void> => {
       return;
     }
 
-    if (studio.status === "DISABLED") {
+    if (studio.status === "disabled" || studio.status === "DISABLED") {
       res.clearCookie("lumiere_token", { path: "/" });
       res.status(403).json({ error: "Tài khoản đã bị vô hiệu hóa. Vui lòng liên hệ Admin.", code: "DISABLED" });
-      return;
-    }
-
-    if (studio.expiresAt && studio.expiresAt < new Date()) {
-      res.clearCookie("lumiere_token", { path: "/" });
-      res.status(403).json({ error: "Tài khoản đã hết hạn sử dụng. Vui lòng liên hệ Admin để gia hạn.", code: "EXPIRED" });
       return;
     }
 
@@ -164,6 +163,9 @@ router.get("/auth/me", async (req, res): Promise<void> => {
         id: studio.id,
         name: studio.name,
         email: studio.email,
+        status: studio.status,
+        trialEndsAt: studio.trialEndsAt?.toISOString() ?? null,
+        subscriptionExpiresAt: studio.subscriptionExpiresAt?.toISOString() ?? null,
         googleDriveConnected: !!studio.googleDriveRefreshToken,
         rootFolderId: studio.rootFolderId,
         defaultMaxSelection: studio.defaultMaxSelection ?? 0,

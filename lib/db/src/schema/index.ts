@@ -1,4 +1,4 @@
-import { pgTable, text, timestamp, boolean, integer, uuid, index } from "drizzle-orm/pg-core";
+import { pgTable, text, timestamp, boolean, integer, uuid, index, serial, bigint } from "drizzle-orm/pg-core";
 
 export const adminUsersTable = pgTable("admin_users", {
   id: uuid("id").primaryKey().defaultRandom(),
@@ -14,7 +14,9 @@ export const studiosTable = pgTable("studios", {
   email: text("email").notNull().unique(),
   phone: text("phone"),
   passwordHash: text("password_hash").notNull(),
-  status: text("status", { enum: ["PENDING", "APPROVED", "DISABLED"] }).notNull().default("PENDING"),
+  status: text("status", { enum: ["trial", "active", "expired", "disabled", "PENDING", "APPROVED", "DISABLED"] }).notNull().default("trial"),
+  trialEndsAt: timestamp("trial_ends_at"),
+  subscriptionExpiresAt: timestamp("subscription_expires_at"),
   googleDriveRefreshToken: text("google_drive_refresh_token"),
   rootFolderId: text("root_folder_id"),
   defaultMaxSelection: integer("default_max_selection").notNull().default(0),
@@ -27,6 +29,27 @@ export const studiosTable = pgTable("studios", {
 }, (table) => [
   index("studios_status_idx").on(table.status),
 ]);
+
+export const paymentsTable = pgTable("payments", {
+  id: serial("id").primaryKey(),
+  studioId: uuid("studio_id").notNull().references(() => studiosTable.id, { onDelete: "cascade" }),
+  amount: integer("amount").notNull(),
+  payosOrderCode: bigint("payos_order_code", { mode: "number" }).unique(),
+  transferContent: text("transfer_content"),
+  status: text("status", { enum: ["pending", "paid", "cancelled"] }).notNull().default("pending"),
+  months: integer("months").notNull().default(1),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  paidAt: timestamp("paid_at"),
+}, (table) => [
+  index("payments_studio_id_idx").on(table.studioId),
+  index("payments_payos_order_code_idx").on(table.payosOrderCode),
+]);
+
+export const settingsTable = pgTable("settings", {
+  key: text("key").primaryKey(),
+  value: text("value").notNull(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow().$onUpdate(() => new Date()),
+});
 
 export const albumsTable = pgTable("albums", {
   id: uuid("id").primaryKey().defaultRandom(),

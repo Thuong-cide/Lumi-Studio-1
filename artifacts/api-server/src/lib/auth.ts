@@ -34,6 +34,10 @@ export function getTokenFromRequest(req: Request): string | null {
   return cookie ?? null;
 }
 
+export function isStudioActive(status: string): boolean {
+  return ["trial", "active", "APPROVED"].includes(status);
+}
+
 export function requireAuth(req: Request, role?: "ADMIN" | "STUDIO"): JWTPayload {
   const token = getTokenFromRequest(req);
   if (!token) throw new Error("Unauthorized");
@@ -47,8 +51,8 @@ export function requireAuth(req: Request, role?: "ADMIN" | "STUDIO"): JWTPayload
 
   if (role && payload.role !== role) throw new Error("Forbidden");
 
-  if (payload.role === "STUDIO" && payload.status !== "APPROVED") {
-    throw new Error("Studio chưa được phê duyệt");
+  if (payload.role === "STUDIO" && !isStudioActive(payload.status ?? "")) {
+    throw new Error("Unauthorized");
   }
 
   return payload;
@@ -57,6 +61,5 @@ export function requireAuth(req: Request, role?: "ADMIN" | "STUDIO"): JWTPayload
 export function getErrorStatus(message: string): number {
   if (message === "Unauthorized") return 401;
   if (message === "Forbidden") return 403;
-  if (message === "Studio chưa được phê duyệt") return 403;
   return 500;
 }

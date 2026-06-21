@@ -1,10 +1,12 @@
 import { useGetMe, getGetMeQueryKey, useListAlbums, getListAlbumsQueryKey } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { Link } from "wouter";
 import { motion } from "framer-motion";
 import { Image as ImageIcon, Plus, ArrowRight } from "lucide-react";
 import { format } from "date-fns";
+import { SubscriptionBanner } from "@/components/subscription/SubscriptionBanner";
 
 export default function StudioDashboard() {
   const { data: me } = useGetMe({ query: { queryKey: getGetMeQueryKey() } });
@@ -16,7 +18,9 @@ export default function StudioDashboard() {
   const recentAlbums = albums.slice(0, 3);
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6">
+      <SubscriptionBanner />
+
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-3xl font-serif font-bold text-foreground">
@@ -94,6 +98,3 @@ export default function StudioDashboard() {
     </div>
   );
 }
-
-// Add Badge component locally if not imported
-import { Badge } from "@/components/ui/badge";

@@ -1,52 +1,66 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
-import { studiosTable, albumsTable, photosTable, selectionsTable, appConfigTable } from "@workspace/db";
+import { studiosTable, albumsTable, photosTable, selectionsTable, appConfigTable, settingsTable, paymentsTable } from "@workspace/db";
 import { eq, count, inArray } from "drizzle-orm";
 import { requireAuth, getErrorStatus, hashPassword } from "../lib/auth";
 import { getGoogleConfig, invalidateGoogleConfigCache } from "../lib/google-drive";
 
 const router = Router();
 
+const SETTINGS_KEYS = ["monthly_price", "payos_client_id", "payos_api_key", "payos_checksum_key"];
+
+async function ensureDefaultSettings() {
+  const defaults: Record<string, string> = {
+    monthly_price: "299000",
+    payos_client_id: "",
+    payos_api_key: "",
+    payos_checksum_key: "",
+  };
+  for (const [key, value] of Object.entries(defaults)) {
+    await db.insert(settingsTable)
+      .values({ key, value })
+      .onConflictDoNothing();
+  }
+}
+
+function maskSecret(value: string): string {
+  if (!value || value.length === 0) return "";
+  if (value.length <= 6) return "••••••";
+  return "••••••" + value.slice(-6);
+}
+
 router.get("/admin/stats", async (req, res): Promise<void> => {
   try {
     requireAuth(req, "ADMIN");
-    const [totalStudios, pendingStudios, approvedStudios, totalAlbums, totalPhotos, totalSelections] = await Promise.all([
+    const [totalStudios, totalAlbums, totalPhotos, totalSelections] = await Promise.all([
       db.select({ count: count() }).from(studiosTable).then(r => r[0].count),
-      db.select({ count: count() }).from(studiosTable).where(eq(studiosTable.status, "PENDING")).then(r => r[0].count),
-      db.select({ count: count() }).from(studiosTable).where(eq(studiosTable.status, "APPROVED")).then(r => r[0].count),
       db.select({ count: count() }).from(albumsTable).then(r => r[0].count),
       db.select({ count: count() }).from(photosTable).then(r => r[0].count),
       db.select({ count: count() }).from(selectionsTable).where(eq(selectionsTable.selected, true)).then(r => r[0].count),
     ]);
-    res.json({ totalStudios, pendingStudios, approvedStudios, totalAlbums, totalPhotos, totalSelections });
+    res.json({ totalStudios, pendingStudios: 0, approvedStudios: totalStudios, totalAlbums, totalPhotos, totalSelections });
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : "Server error";
     res.status(getErrorStatus(msg)).json({ error: msg });
   }
 });
 
-// FIX N+1: Thay vì loop N studios × 1 COUNT query, dùng 1 batch COUNT query grouped by studioId
 router.get("/admin/studios", async (req, res): Promise<void> => {
   try {
     requireAuth(req, "ADMIN");
-    const statusParam = req.query.status as string | undefined;
 
-    let query = db.select({
+    const studios = await db.select({
       id: studiosTable.id,
       name: studiosTable.name,
       email: studiosTable.email,
       phone: studiosTable.phone,
       status: studiosTable.status,
+      trialEndsAt: studiosTable.trialEndsAt,
+      subscriptionExpiresAt: studiosTable.subscriptionExpiresAt,
       expiresAt: studiosTable.expiresAt,
       createdAt: studiosTable.createdAt,
       updatedAt: studiosTable.updatedAt,
-    }).from(studiosTable).$dynamic();
-
-    if (statusParam && ["PENDING", "APPROVED", "DISABLED"].includes(statusParam)) {
-      query = query.where(eq(studiosTable.status, statusParam as "PENDING" | "APPROVED" | "DISABLED"));
-    }
-
-    const studios = await query.orderBy(studiosTable.createdAt);
+    }).from(studiosTable).orderBy(studiosTable.createdAt);
 
     if (studios.length === 0) {
       res.json({ studios: [] });
@@ -67,6 +81,8 @@ router.get("/admin/studios", async (req, res): Promise<void> => {
         ...studio,
         albumCount: albumCountMap[studio.id] ?? 0,
         googleDriveConnected: false,
+        trialEndsAt: studio.trialEndsAt ? studio.trialEndsAt.toISOString() : null,
+        subscriptionExpiresAt: studio.subscriptionExpiresAt ? studio.subscriptionExpiresAt.toISOString() : null,
         expiresAt: studio.expiresAt ? studio.expiresAt.toISOString() : null,
         createdAt: studio.createdAt.toISOString(),
         updatedAt: studio.updatedAt.toISOString(),
@@ -82,21 +98,21 @@ router.patch("/admin/studios/:id", async (req, res): Promise<void> => {
   try {
     requireAuth(req, "ADMIN");
     const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
-    const { status, expiresAt } = req.body;
+    const { status, expiresAt, subscriptionExpiresAt, trialEndsAt } = req.body;
 
     const patch: Record<string, unknown> = {};
 
     if (status !== undefined) {
-      if (!["PENDING", "APPROVED", "DISABLED"].includes(status)) {
+      if (!["trial", "active", "expired", "disabled", "PENDING", "APPROVED", "DISABLED"].includes(status)) {
         res.status(400).json({ error: "Trạng thái không hợp lệ" });
         return;
       }
       patch.status = status;
     }
 
-    if (expiresAt !== undefined) {
-      patch.expiresAt = expiresAt ? new Date(expiresAt) : null;
-    }
+    if (expiresAt !== undefined) patch.expiresAt = expiresAt ? new Date(expiresAt) : null;
+    if (subscriptionExpiresAt !== undefined) patch.subscriptionExpiresAt = subscriptionExpiresAt ? new Date(subscriptionExpiresAt) : null;
+    if (trialEndsAt !== undefined) patch.trialEndsAt = trialEndsAt ? new Date(trialEndsAt) : null;
 
     if (Object.keys(patch).length === 0) {
       res.status(400).json({ error: "Không có thông tin cần cập nhật" });
@@ -111,6 +127,8 @@ router.patch("/admin/studios/:id", async (req, res): Promise<void> => {
         name: studiosTable.name,
         email: studiosTable.email,
         status: studiosTable.status,
+        trialEndsAt: studiosTable.trialEndsAt,
+        subscriptionExpiresAt: studiosTable.subscriptionExpiresAt,
         expiresAt: studiosTable.expiresAt,
         createdAt: studiosTable.createdAt,
         updatedAt: studiosTable.updatedAt,
@@ -120,6 +138,8 @@ router.patch("/admin/studios/:id", async (req, res): Promise<void> => {
         ...studio,
         albumCount: 0,
         googleDriveConnected: false,
+        trialEndsAt: studio.trialEndsAt ? studio.trialEndsAt.toISOString() : null,
+        subscriptionExpiresAt: studio.subscriptionExpiresAt ? studio.subscriptionExpiresAt.toISOString() : null,
         expiresAt: studio.expiresAt ? studio.expiresAt.toISOString() : null,
         createdAt: studio.createdAt.toISOString(),
         updatedAt: studio.updatedAt.toISOString(),
@@ -230,6 +250,89 @@ router.patch("/admin/config", async (req, res): Promise<void> => {
 
     await Promise.all(updates);
     res.json({ success: true });
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : "Server error";
+    res.status(getErrorStatus(msg)).json({ error: msg });
+  }
+});
+
+router.get("/admin/settings", async (req, res): Promise<void> => {
+  try {
+    requireAuth(req, "ADMIN");
+    await ensureDefaultSettings();
+
+    const rows = await db.select().from(settingsTable);
+    const result: Record<string, string> = {};
+    for (const row of rows) {
+      if (row.key === "payos_api_key" || row.key === "payos_checksum_key") {
+        result[row.key] = maskSecret(row.value);
+      } else {
+        result[row.key] = row.value;
+      }
+    }
+
+    const payosConfigured = !!(
+      rows.find(r => r.key === "payos_client_id")?.value &&
+      rows.find(r => r.key === "payos_api_key")?.value &&
+      rows.find(r => r.key === "payos_checksum_key")?.value
+    );
+
+    res.json({ settings: result, payosConfigured });
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : "Server error";
+    res.status(getErrorStatus(msg)).json({ error: msg });
+  }
+});
+
+router.put("/admin/settings/:key", async (req, res): Promise<void> => {
+  try {
+    requireAuth(req, "ADMIN");
+    const key = Array.isArray(req.params.key) ? req.params.key[0] : req.params.key;
+
+    if (!SETTINGS_KEYS.includes(key)) {
+      res.status(400).json({ error: "Khóa cài đặt không hợp lệ" });
+      return;
+    }
+
+    const { value } = req.body;
+    if (value === undefined || value === null) {
+      res.status(400).json({ error: "Giá trị không được để trống" });
+      return;
+    }
+
+    await db.insert(settingsTable)
+      .values({ key, value: String(value) })
+      .onConflictDoUpdate({ target: settingsTable.key, set: { value: String(value) } });
+
+    res.json({ success: true });
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : "Server error";
+    res.status(getErrorStatus(msg)).json({ error: msg });
+  }
+});
+
+router.get("/admin/payments", async (req, res): Promise<void> => {
+  try {
+    requireAuth(req, "ADMIN");
+    const payments = await db.select({
+      id: paymentsTable.id,
+      studioId: paymentsTable.studioId,
+      amount: paymentsTable.amount,
+      payosOrderCode: paymentsTable.payosOrderCode,
+      transferContent: paymentsTable.transferContent,
+      status: paymentsTable.status,
+      months: paymentsTable.months,
+      createdAt: paymentsTable.createdAt,
+      paidAt: paymentsTable.paidAt,
+    }).from(paymentsTable).orderBy(paymentsTable.createdAt);
+
+    res.json({
+      payments: payments.map(p => ({
+        ...p,
+        createdAt: p.createdAt.toISOString(),
+        paidAt: p.paidAt?.toISOString() ?? null,
+      })),
+    });
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : "Server error";
     res.status(getErrorStatus(msg)).json({ error: msg });

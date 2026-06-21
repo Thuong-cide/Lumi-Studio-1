@@ -4,8 +4,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
+import { Badge } from "@/components/ui/badge";
 import { toast } from "@/hooks/use-toast";
-import { Loader2, CheckCircle2, AlertCircle, ExternalLink, Eye, EyeOff, Copy, Phone, MessageCircle } from "lucide-react";
+import { Loader2, CheckCircle2, AlertCircle, ExternalLink, Eye, EyeOff, Copy, Phone, MessageCircle, CreditCard } from "lucide-react";
 
 type ContactConfig = {
   enabled: boolean;
@@ -21,6 +22,11 @@ type ConfigData = {
   googleRedirectUri: string;
   isConfigured: boolean;
   contact: ContactConfig;
+};
+
+type SettingsData = {
+  settings: Record<string, string>;
+  payosConfigured: boolean;
 };
 
 export default function AdminConfig() {
@@ -40,28 +46,41 @@ export default function AdminConfig() {
   const [contactPhone, setContactPhone] = useState("");
   const [contactTelegram, setContactTelegram] = useState("");
 
+  const [settingsData, setSettingsData] = useState<SettingsData | null>(null);
+  const [monthlyPrice, setMonthlyPrice] = useState("");
+  const [payosClientId, setPayosClientId] = useState("");
+  const [payosApiKey, setPayosApiKey] = useState("");
+  const [payosChecksumKey, setPayosChecksumKey] = useState("");
+  const [showPayosApiKey, setShowPayosApiKey] = useState(false);
+  const [showPayosChecksumKey, setShowPayosChecksumKey] = useState(false);
+  const [isSavingPrice, setIsSavingPrice] = useState(false);
+  const [isSavingPayos, setIsSavingPayos] = useState(false);
+
   const suggestedRedirectUri = `${window.location.origin}/api/auth/google/callback`;
 
   useEffect(() => {
-    fetch("/api/admin/config")
-      .then(r => r.json())
-      .then((data: ConfigData) => {
-        setConfig(data);
-        setClientId(data.googleClientId || "");
-        setClientSecret("");
-        setRedirectUri(data.googleRedirectUri || suggestedRedirectUri);
-        if (data.contact) {
-          setContactEnabled(!!data.contact.enabled);
-          setContactZalo(data.contact.zalo || "");
-          setContactFacebook(data.contact.facebook || "");
-          setContactPhone(data.contact.phone || "");
-          setContactTelegram(data.contact.telegram || "");
-        }
-      })
-      .catch(() => {
-        setRedirectUri(suggestedRedirectUri);
-      })
-      .finally(() => setIsLoading(false));
+    Promise.all([
+      fetch("/api/admin/config").then(r => r.json()),
+      fetch("/api/admin/settings").then(r => r.json()),
+    ]).then(([configData, settingsJson]: [ConfigData, SettingsData]) => {
+      setConfig(configData);
+      setClientId(configData.googleClientId || "");
+      setClientSecret("");
+      setRedirectUri(configData.googleRedirectUri || suggestedRedirectUri);
+      if (configData.contact) {
+        setContactEnabled(!!configData.contact.enabled);
+        setContactZalo(configData.contact.zalo || "");
+        setContactFacebook(configData.contact.facebook || "");
+        setContactPhone(configData.contact.phone || "");
+        setContactTelegram(configData.contact.telegram || "");
+      }
+
+      setSettingsData(settingsJson);
+      setMonthlyPrice(settingsJson.settings?.monthly_price || "299000");
+      setPayosClientId(settingsJson.settings?.payos_client_id || "");
+    }).catch(() => {
+      setRedirectUri(suggestedRedirectUri);
+    }).finally(() => setIsLoading(false));
   }, []);
 
   const handleSaveGoogle = async (e: React.FormEvent) => {
@@ -75,11 +94,7 @@ export default function AdminConfig() {
       const res = await fetch("/api/admin/config", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          googleClientId: clientId,
-          googleClientSecret: clientSecret,
-          googleRedirectUri: redirectUri,
-        }),
+        body: JSON.stringify({ googleClientId: clientId, googleClientSecret: clientSecret, googleRedirectUri: redirectUri }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -103,15 +118,7 @@ export default function AdminConfig() {
       const res = await fetch("/api/admin/config", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          contact: {
-            enabled: contactEnabled,
-            zalo: contactZalo,
-            facebook: contactFacebook,
-            phone: contactPhone,
-            telegram: contactTelegram,
-          },
-        }),
+        body: JSON.stringify({ contact: { enabled: contactEnabled, zalo: contactZalo, facebook: contactFacebook, phone: contactPhone, telegram: contactTelegram } }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -126,9 +133,80 @@ export default function AdminConfig() {
     }
   };
 
+  const saveSettingKey = async (key: string, value: string) => {
+    const res = await fetch(`/api/admin/settings/${key}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ value }),
+    });
+    if (!res.ok) {
+      const data = await res.json();
+      throw new Error(data.error || "Lỗi lưu cài đặt");
+    }
+  };
+
+  const handleSavePrice = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const price = parseInt(monthlyPrice, 10);
+    if (isNaN(price) || price <= 0) {
+      toast({ title: "Lỗi", description: "Giá không hợp lệ", variant: "destructive" });
+      return;
+    }
+    setIsSavingPrice(true);
+    try {
+      await saveSettingKey("monthly_price", String(price));
+      toast({ title: "Đã lưu!", description: "Giá thuê bao đã được cập nhật." });
+      setSettingsData(prev => prev ? { ...prev, settings: { ...prev.settings, monthly_price: String(price) } } : null);
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "Lỗi kết nối";
+      toast({ title: "Lỗi", description: msg, variant: "destructive" });
+    } finally {
+      setIsSavingPrice(false);
+    }
+  };
+
+  const handleSavePayos = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsSavingPayos(true);
+    try {
+      const updates: Promise<void>[] = [];
+      if (payosClientId.trim()) {
+        updates.push(saveSettingKey("payos_client_id", payosClientId.trim()));
+      }
+      if (payosApiKey.trim()) {
+        updates.push(saveSettingKey("payos_api_key", payosApiKey.trim()));
+      }
+      if (payosChecksumKey.trim()) {
+        updates.push(saveSettingKey("payos_checksum_key", payosChecksumKey.trim()));
+      }
+      if (updates.length === 0) {
+        toast({ title: "Không có thay đổi", description: "Vui lòng nhập ít nhất một giá trị mới." });
+        return;
+      }
+      await Promise.all(updates);
+      toast({ title: "Đã lưu!", description: "Cấu hình PayOS đã được cập nhật." });
+
+      const res = await fetch("/api/admin/settings").then(r => r.json());
+      setSettingsData(res);
+      setPayosApiKey("");
+      setPayosChecksumKey("");
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "Lỗi kết nối";
+      toast({ title: "Lỗi", description: msg, variant: "destructive" });
+    } finally {
+      setIsSavingPayos(false);
+    }
+  };
+
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text);
     toast({ title: "Đã sao chép", description: text });
+  };
+
+  const formatPrice = (val: string) => {
+    const num = parseInt(val, 10);
+    if (isNaN(num)) return "";
+    return new Intl.NumberFormat("vi-VN").format(num) + " ₫ / tháng";
   };
 
   if (isLoading) {
@@ -139,8 +217,152 @@ export default function AdminConfig() {
     <div className="space-y-10 max-w-2xl">
       <div>
         <h1 className="text-3xl font-serif font-bold text-foreground">Cấu hình hệ thống</h1>
-        <p className="text-muted-foreground mt-1">Thiết lập Google API và thông tin liên hệ hiển thị trên gallery.</p>
+        <p className="text-muted-foreground mt-1">Thiết lập Google API, thanh toán PayOS và thông tin liên hệ.</p>
       </div>
+
+      {/* ── PAYOS SECTION ──────────────────────────────────────────── */}
+      <section className="space-y-4">
+        <div className="flex items-center gap-2">
+          <CreditCard className="h-5 w-5 text-primary" />
+          <h2 className="text-lg font-semibold text-foreground">Thanh toán PayOS</h2>
+          {settingsData?.payosConfigured ? (
+            <Badge className="bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300 border-green-200 dark:border-green-700">
+              <CheckCircle2 className="h-3 w-3 mr-1" />Đã cấu hình
+            </Badge>
+          ) : (
+            <Badge variant="destructive" className="bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300 border-red-200">
+              <AlertCircle className="h-3 w-3 mr-1" />Chưa cấu hình
+            </Badge>
+          )}
+        </div>
+
+        {/* Giá thuê bao */}
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base font-medium">Giá thuê bao</CardTitle>
+            <CardDescription>Giá áp dụng khi studio gia hạn tài khoản</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <form onSubmit={handleSavePrice} className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="monthly-price">Giá hàng tháng (VNĐ)</Label>
+                <Input
+                  id="monthly-price"
+                  type="number"
+                  min="1000"
+                  placeholder="299000"
+                  value={monthlyPrice}
+                  onChange={e => setMonthlyPrice(e.target.value)}
+                />
+                {monthlyPrice && !isNaN(parseInt(monthlyPrice)) && (
+                  <p className="text-sm text-muted-foreground">Preview: <strong>{formatPrice(monthlyPrice)}</strong></p>
+                )}
+              </div>
+              <Button type="submit" disabled={isSavingPrice} variant="outline">
+                {isSavingPrice ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Đang lưu...</> : "Lưu giá"}
+              </Button>
+            </form>
+          </CardContent>
+        </Card>
+
+        {/* PayOS Credentials */}
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base font-medium">Thông tin cấu hình PayOS</CardTitle>
+            <CardDescription>
+              Lấy credentials tại{" "}
+              <a href="https://business.payos.vn" target="_blank" rel="noopener noreferrer" className="text-primary inline-flex items-center gap-0.5">
+                business.payos.vn <ExternalLink className="h-3 w-3" />
+              </a>
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <form onSubmit={handleSavePayos} className="space-y-4">
+              {/* Client ID */}
+              <div className="space-y-2">
+                <Label htmlFor="payos-client-id">Client ID</Label>
+                <div className="relative">
+                  <Input
+                    id="payos-client-id"
+                    placeholder={settingsData?.settings?.payos_client_id ? settingsData.settings.payos_client_id : "Nhập Client ID"}
+                    value={payosClientId}
+                    onChange={e => setPayosClientId(e.target.value)}
+                    className="font-mono text-sm pr-10"
+                  />
+                  {payosClientId && (
+                    <button type="button" className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground" onClick={() => copyToClipboard(payosClientId)}>
+                      <Copy className="h-4 w-4" />
+                    </button>
+                  )}
+                </div>
+                {settingsData?.settings?.payos_client_id && (
+                  <p className="text-xs text-muted-foreground">Đang dùng: {settingsData.settings.payos_client_id}</p>
+                )}
+              </div>
+
+              {/* API Key */}
+              <div className="space-y-2">
+                <Label htmlFor="payos-api-key">Api Key</Label>
+                <div className="relative">
+                  <Input
+                    id="payos-api-key"
+                    type={showPayosApiKey ? "text" : "password"}
+                    placeholder={settingsData?.settings?.payos_api_key || "Nhập Api Key mới để cập nhật"}
+                    value={payosApiKey}
+                    onChange={e => setPayosApiKey(e.target.value)}
+                    className="font-mono text-sm pr-16"
+                  />
+                  <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
+                    {payosApiKey && (
+                      <button type="button" className="text-muted-foreground hover:text-foreground" onClick={() => copyToClipboard(payosApiKey)}>
+                        <Copy className="h-3.5 w-3.5" />
+                      </button>
+                    )}
+                    <button type="button" className="text-muted-foreground hover:text-foreground" onClick={() => setShowPayosApiKey(v => !v)}>
+                      {showPayosApiKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </button>
+                  </div>
+                </div>
+                {settingsData?.settings?.payos_api_key && (
+                  <p className="text-xs text-muted-foreground">Đang dùng: {settingsData.settings.payos_api_key}</p>
+                )}
+              </div>
+
+              {/* Checksum Key */}
+              <div className="space-y-2">
+                <Label htmlFor="payos-checksum-key">Checksum Key</Label>
+                <div className="relative">
+                  <Input
+                    id="payos-checksum-key"
+                    type={showPayosChecksumKey ? "text" : "password"}
+                    placeholder={settingsData?.settings?.payos_checksum_key || "Nhập Checksum Key mới để cập nhật"}
+                    value={payosChecksumKey}
+                    onChange={e => setPayosChecksumKey(e.target.value)}
+                    className="font-mono text-sm pr-16"
+                  />
+                  <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
+                    {payosChecksumKey && (
+                      <button type="button" className="text-muted-foreground hover:text-foreground" onClick={() => copyToClipboard(payosChecksumKey)}>
+                        <Copy className="h-3.5 w-3.5" />
+                      </button>
+                    )}
+                    <button type="button" className="text-muted-foreground hover:text-foreground" onClick={() => setShowPayosChecksumKey(v => !v)}>
+                      {showPayosChecksumKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </button>
+                  </div>
+                </div>
+                {settingsData?.settings?.payos_checksum_key && (
+                  <p className="text-xs text-muted-foreground">Đang dùng: {settingsData.settings.payos_checksum_key}</p>
+                )}
+              </div>
+
+              <Button type="submit" disabled={isSavingPayos} className="w-full">
+                {isSavingPayos ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Đang lưu...</> : "Lưu cấu hình PayOS"}
+              </Button>
+            </form>
+          </CardContent>
+        </Card>
+      </section>
 
       {/* ── GOOGLE OAUTH ─────────────────────────────────────────── */}
       <section className="space-y-4">
@@ -252,11 +474,7 @@ export default function AdminConfig() {
                 <Label htmlFor="contact-enabled" className="text-sm text-muted-foreground">
                   {contactEnabled ? "Đang hiển thị" : "Đang ẩn"}
                 </Label>
-                <Switch
-                  id="contact-enabled"
-                  checked={contactEnabled}
-                  onCheckedChange={setContactEnabled}
-                />
+                <Switch id="contact-enabled" checked={contactEnabled} onCheckedChange={setContactEnabled} />
               </div>
             </div>
             <CardDescription>Điền link hoặc số điện thoại. Để trống kênh nào sẽ ẩn kênh đó.</CardDescription>
@@ -270,12 +488,7 @@ export default function AdminConfig() {
                   </div>
                   <div className="flex-1 space-y-1">
                     <Label htmlFor="contact-zalo" className="text-sm">Zalo</Label>
-                    <Input
-                      id="contact-zalo"
-                      placeholder="Số điện thoại hoặc https://zalo.me/..."
-                      value={contactZalo}
-                      onChange={e => setContactZalo(e.target.value)}
-                    />
+                    <Input id="contact-zalo" placeholder="Số điện thoại hoặc https://zalo.me/..." value={contactZalo} onChange={e => setContactZalo(e.target.value)} />
                   </div>
                 </div>
 
@@ -285,12 +498,7 @@ export default function AdminConfig() {
                   </div>
                   <div className="flex-1 space-y-1">
                     <Label htmlFor="contact-facebook" className="text-sm">Facebook</Label>
-                    <Input
-                      id="contact-facebook"
-                      placeholder="https://facebook.com/yourstudio"
-                      value={contactFacebook}
-                      onChange={e => setContactFacebook(e.target.value)}
-                    />
+                    <Input id="contact-facebook" placeholder="https://facebook.com/yourstudio" value={contactFacebook} onChange={e => setContactFacebook(e.target.value)} />
                   </div>
                 </div>
 
@@ -300,12 +508,7 @@ export default function AdminConfig() {
                   </div>
                   <div className="flex-1 space-y-1">
                     <Label htmlFor="contact-phone" className="text-sm">Điện thoại</Label>
-                    <Input
-                      id="contact-phone"
-                      placeholder="0901 234 567"
-                      value={contactPhone}
-                      onChange={e => setContactPhone(e.target.value)}
-                    />
+                    <Input id="contact-phone" placeholder="0901 234 567" value={contactPhone} onChange={e => setContactPhone(e.target.value)} />
                   </div>
                 </div>
 
@@ -315,12 +518,7 @@ export default function AdminConfig() {
                   </div>
                   <div className="flex-1 space-y-1">
                     <Label htmlFor="contact-telegram" className="text-sm">Telegram</Label>
-                    <Input
-                      id="contact-telegram"
-                      placeholder="@yourstudio hoặc https://t.me/..."
-                      value={contactTelegram}
-                      onChange={e => setContactTelegram(e.target.value)}
-                    />
+                    <Input id="contact-telegram" placeholder="@yourstudio hoặc https://t.me/..." value={contactTelegram} onChange={e => setContactTelegram(e.target.value)} />
                   </div>
                 </div>
               </div>

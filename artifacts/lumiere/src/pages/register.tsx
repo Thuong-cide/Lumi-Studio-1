@@ -44,8 +44,8 @@ export default function Register() {
       {
         onSuccess: () => {
           toast({ 
-            title: "Đăng ký thành công",
-            description: "Tài khoản của bạn đang chờ phê duyệt từ quản trị viên.",
+            title: "Đăng ký thành công!",
+            description: "Bạn có 15 ngày dùng thử miễn phí. Hãy đăng nhập để bắt đầu.",
           });
           setLocation("/login");
         },

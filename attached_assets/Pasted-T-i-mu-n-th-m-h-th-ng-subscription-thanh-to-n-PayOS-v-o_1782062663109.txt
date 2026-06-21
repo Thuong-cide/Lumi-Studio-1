@@ -1,0 +1,149 @@
+Tôi muốn thêm hệ thống subscription + thanh toán PayOS vào app Lumière Studio. 
+Hãy implement theo đúng thứ tự dưới đây, từng bước một.
+
+---
+
+## BƯỚC 1: CẬP NHẬT DATABASE SCHEMA
+
+Trong file `lib/db/src/schema/index.ts`, cập nhật bảng `studios`:
+- Thêm cột `status`: enum gồm 'trial' | 'active' | 'expired' | 'disabled', default 'trial'
+- Thêm cột `trial_ends_at`: timestamp, nullable
+- Thêm cột `subscription_expires_at`: timestamp, nullable
+
+Tạo bảng mới `payments`:
+- id (serial primary key)
+- studio_id (FK → studios.id)
+- amount (integer, đơn vị VNĐ)
+- payos_order_code (bigint, unique) — mã đơn hàng PayOS
+- transfer_content (text) — nội dung chuyển khoản (dùng để match webhook)
+- status: enum 'pending' | 'paid' | 'cancelled', default 'pending'
+- months (integer, default 1) — số tháng được cộng khi thanh toán thành công
+- created_at (timestamp, default now)
+- paid_at (timestamp, nullable)
+
+Tạo bảng `settings` (key-value cho admin cài đặt):
+- key (text, primary key)
+- value (text)
+- updated_at (timestamp, default now)
+
+Seed mặc định vào `settings`: { key: 'monthly_price', value: '299000' }
+
+Sau đó chạy `pnpm --filter @workspace/db run push` để apply migration.
+
+---
+
+## BƯỚC 2: AUTO-TRIAL KHI ĐĂNG KÝ
+
+Trong route đăng ký studio (POST /api/auth/register hoặc tương tự):
+- Sau khi tạo studio thành công, tự động set:
+  - status = 'trial'
+  - trial_ends_at = thời điểm hiện tại + 15 ngày
+- Không cần admin duyệt nữa (xoá bước pending/approval nếu có)
+
+---
+
+## BƯỚC 3: MIDDLEWARE KIỂM TRA HẠN
+
+Tạo middleware `checkSubscription` trong api-server:
+- Nếu studio có status = 'trial' và trial_ends_at đã qua → tự động update status = 'expired'
+- Nếu studio có status = 'active' và subscription_expires_at đã qua → tự động update status = 'expired'
+- Gắn middleware này vào tất cả route của studio (trừ route thanh toán và logout)
+- Nếu status = 'expired' hoặc 'disabled': trả về HTTP 403 với body { code: 'SUBSCRIPTION_EXPIRED' }
+
+---
+
+## BƯỚC 4: ADMIN SETTINGS API
+
+Tạo các route trong api-server cho admin:
+
+GET /api/admin/settings — trả về toàn bộ settings
+PUT /api/admin/settings/:key — cập nhật 1 setting (chỉ admin JWT mới được gọi)
+
+Trong trang Admin frontend, thêm section "Cài đặt hệ thống" với:
+- Input "Giá thuê bao hàng tháng (VNĐ)" — đọc từ settings.monthly_price
+- Nút Lưu → gọi PUT /api/admin/settings/monthly_price
+- Hiển thị giá đang áp dụng
+
+---
+
+## BƯỚC 5: PAYOS INTEGRATION — TẠO ĐƠN HÀNG
+
+Cài đặt PayOS SDK: `pnpm --filter @workspace/api-server add @payos/node`
+
+Thêm các biến môi trường vào .env.example:
+- PAYOS_CLIENT_ID
+- PAYOS_API_KEY  
+- PAYOS_CHECKSUM_KEY
+
+Tạo route POST /api/studio/payment/create-order:
+- Yêu cầu studio JWT
+- Đọc monthly_price từ bảng settings
+- Tạo orderCode = số nguyên random 8 chữ số (unique)
+- Tạo transferContent = "LUMIERE" + orderCode (ví dụ: "LUMIERE12345678")
+- Gọi PayOS API tạo payment link với:
+  - amount = monthly_price
+  - orderCode = orderCode
+  - description = transferContent (tối đa 25 ký tự)
+  - returnUrl và cancelUrl trỏ về frontend
+- Lưu vào bảng payments: { studio_id, amount, payos_order_code, transfer_content, status: 'pending', months: 1 }
+- Trả về response: { qrCode: string (base64 hoặc URL), transferContent, amount, orderCode }
+
+---
+
+## BƯỚC 6: PAYOS WEBHOOK
+
+Tạo route POST /api/webhooks/payos (KHÔNG yêu cầu auth JWT):
+- Verify chữ ký HMAC từ PayOS theo đúng tài liệu PayOS (@payos/node có sẵn hàm verifyPaymentWebhookData)
+- Nếu webhook data có code = '00' (thành công):
+  - Tìm payment theo orderCode
+  - Nếu payment.status đã là 'paid' → bỏ qua (idempotent)
+  - Cập nhật payment: status = 'paid', paid_at = now
+  - Tìm studio của payment đó
+  - Tính subscription_expires_at mới:
+    - Nếu studio đang active và chưa hết hạn: cộng thêm (payment.months * 30) ngày từ ngày hiện tại của subscription_expires_at
+    - Các trường hợp còn lại: cộng từ now
+  - Cập nhật studio: status = 'active', subscription_expires_at = giá trị mới
+- Luôn trả về HTTP 200 (kể cả lỗi nội bộ, để PayOS không retry)
+
+---
+
+## BƯỚC 7: FRONTEND — POPUP HẾT HẠN + QR THANH TOÁN
+
+Trong frontend studio, xử lý khi API trả về HTTP 403 với { code: 'SUBSCRIPTION_EXPIRED' }:
+
+Hiển thị modal/popup "Tài khoản hết hạn" với 2 tab:
+- Tab 1 (mặc định): Thông tin hết hạn + nút "Gia hạn ngay"
+- Tab 2 (sau khi bấm Gia hạn): 
+  - Gọi POST /api/studio/payment/create-order
+  - Hiển thị:
+    - Ảnh QR (từ qrCode trả về)
+    - Nội dung chuyển khoản: [transferContent] (in đậm, có nút copy)
+    - Số tiền: [amount] VNĐ
+    - Hướng dẫn: "Chuyển khoản đúng nội dung, hệ thống tự động kích hoạt trong vài giây"
+  - Polling mỗi 5 giây gọi GET /api/studio/payment/status/:orderCode
+  - Khi payment status = 'paid': đóng popup, reload trang, hiển thị thông báo "Gia hạn thành công!"
+
+Tạo thêm route GET /api/studio/payment/status/:orderCode:
+- Trả về { status: 'pending' | 'paid' | 'cancelled' } của payment đó
+- Chỉ cho phép studio chủ sở hữu payment đó truy cập
+
+---
+
+## BƯỚC 8: HIỂN THỊ TRẠNG THÁI TRONG DASHBOARD
+
+Trong Studio Dashboard (header hoặc sidebar), hiển thị:
+- Nếu status = 'trial': banner màu vàng "Đang dùng thử — còn X ngày" (tính từ trial_ends_at)
+- Nếu status = 'active': badge màu xanh "Đã kích hoạt — hết hạn ngày DD/MM/YYYY"
+- Nếu status = 'expired': không cần (vì đã có popup chặn)
+
+Thêm API GET /api/studio/subscription-info trả về:
+- status, trial_ends_at, subscription_expires_at, days_remaining
+
+---
+
+## LƯU Ý QUAN TRỌNG:
+- Toàn bộ text hiển thị người dùng phải bằng tiếng Việt
+- Giữ nguyên pattern JWT HTTP-only cookie đang dùng
+- Sau mỗi bước hãy báo hoàn thành trước khi sang bước tiếp theo
+- Nếu cần tạo file mới, đặt đúng vào artifact tương ứng (api-server hoặc lumiere)
+- Sau khi xong tất cả, chạy lại codegen: `pnpm --filter @workspace/api-spec run codegen`
