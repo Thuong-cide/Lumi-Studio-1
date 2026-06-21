@@ -108,6 +108,8 @@ router.post("/studio/payment/create-order", async (req, res): Promise<void> => {
     res.json({
       qrCode: paymentLink.qrCode,
       checkoutUrl: paymentLink.checkoutUrl,
+      accountNumber: paymentLink.accountNumber,
+      accountName: paymentLink.accountName,
       transferContent,
       amount,
       orderCode,

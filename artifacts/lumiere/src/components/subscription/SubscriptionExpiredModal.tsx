@@ -1,9 +1,8 @@
 import { useState, useEffect, useRef } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { toast } from "@/hooks/use-toast";
-import { Loader2, Copy, CheckCircle2, AlertTriangle, ExternalLink, CreditCard } from "lucide-react";
+import { Loader2, Copy, CheckCircle2, CreditCard } from "lucide-react";
 
 type PaymentStatus = "pending" | "paid" | "cancelled";
 
@@ -22,6 +21,8 @@ type PricingData = {
 type OrderData = {
   qrCode: string;
   checkoutUrl?: string;
+  accountNumber: string;
+  accountName: string;
   transferContent: string;
   amount: number;
   orderCode: number;
@@ -42,7 +43,7 @@ export function SubscriptionExpiredModal({ open, onPaid, onClose, title }: Props
   const [isCreatingOrder, setIsCreatingOrder] = useState(false);
   const [orderData, setOrderData] = useState<OrderData | null>(null);
   const [paymentStatus, setPaymentStatus] = useState<PaymentStatus>("pending");
-  const [copied, setCopied] = useState(false);
+  const [copied, setCopied] = useState<string | false>(false);
   const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
@@ -126,10 +127,10 @@ export function SubscriptionExpiredModal({ open, onPaid, onClose, title }: Props
     }
   };
 
-  const copyToClipboard = async (text: string) => {
+  const copyToClipboard = async (text: string, key: string = "default") => {
     try {
       await navigator.clipboard.writeText(text);
-      setCopied(true);
+      setCopied(key);
       setTimeout(() => setCopied(false), 2000);
     } catch {
       toast({ title: "Không thể copy", variant: "destructive" });
@@ -214,7 +215,7 @@ export function SubscriptionExpiredModal({ open, onPaid, onClose, title }: Props
         )}
 
         {tab === "payment" && orderData && (
-          <div className="space-y-4">
+          <div className="space-y-3">
             {paymentStatus === "paid" ? (
               <div className="flex flex-col items-center gap-3 py-6">
                 <CheckCircle2 className="h-14 w-14 text-green-500" />
@@ -223,53 +224,61 @@ export function SubscriptionExpiredModal({ open, onPaid, onClose, title }: Props
               </div>
             ) : (
               <>
-                <div className="text-center space-y-1">
-                  <p className="text-sm text-muted-foreground">Quét mã QR để thanh toán</p>
-                  {orderData.qrCode && (
-                    <div className="flex justify-center">
-                      <img
-                        src={orderData.qrCode}
-                        alt="QR Code thanh toán"
-                        className="w-48 h-48 rounded-lg border object-contain"
-                        onError={(e) => {
-                          (e.target as HTMLImageElement).style.display = "none";
-                        }}
-                      />
+                {/* QR Code */}
+                {orderData.qrCode && (
+                  <div className="flex justify-center">
+                    <img
+                      src={orderData.qrCode}
+                      alt="QR Code thanh toán"
+                      className="w-52 h-52 rounded-xl border-2 border-border object-contain bg-white"
+                      onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
+                    />
+                  </div>
+                )}
+
+                {/* Bank info */}
+                <div className="rounded-xl border bg-muted/30 divide-y divide-border text-sm">
+                  {orderData.accountName && (
+                    <div className="flex items-center justify-between px-3 py-2.5">
+                      <span className="text-muted-foreground">Chủ TK:</span>
+                      <span className="font-semibold uppercase tracking-wide">{orderData.accountName}</span>
                     </div>
                   )}
-                  {orderData.checkoutUrl && (
-                    <a
-                      href={orderData.checkoutUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
-                    >
-                      Mở trang thanh toán <ExternalLink className="h-3 w-3" />
-                    </a>
+                  {orderData.accountNumber && (
+                    <div className="flex items-center justify-between px-3 py-2.5">
+                      <span className="text-muted-foreground">Số TK:</span>
+                      <div className="flex items-center gap-2">
+                        <span className="font-bold font-mono text-base tracking-wider">{orderData.accountNumber}</span>
+                        <button
+                          onClick={() => copyToClipboard(orderData.accountNumber, "acc")}
+                          className="text-muted-foreground hover:text-foreground transition-colors"
+                          title="Sao chép số TK"
+                        >
+                          {copied === "acc" ? <CheckCircle2 className="h-3.5 w-3.5 text-green-500" /> : <Copy className="h-3.5 w-3.5" />}
+                        </button>
+                      </div>
+                    </div>
                   )}
-                </div>
-
-                <div className="rounded-lg border bg-muted/30 p-3 space-y-2.5 text-sm">
-                  <div className="flex items-center justify-between">
-                    <span className="text-muted-foreground">Gói:</span>
-                    <span className="font-medium">{pricing?.plans.find(p => p.months === orderData.months)?.label ?? `${orderData.months} tháng`}</span>
-                  </div>
-                  <div className="flex items-center justify-between">
+                  <div className="flex items-center justify-between px-3 py-2.5">
                     <span className="text-muted-foreground">Nội dung CK:</span>
-                    <div className="flex items-center gap-1.5">
+                    <div className="flex items-center gap-2">
                       <span className="font-bold font-mono">{orderData.transferContent}</span>
                       <button
-                        onClick={() => copyToClipboard(orderData.transferContent)}
+                        onClick={() => copyToClipboard(orderData.transferContent, "content")}
                         className="text-muted-foreground hover:text-foreground transition-colors"
-                        title="Sao chép"
+                        title="Sao chép nội dung"
                       >
-                        {copied ? <CheckCircle2 className="h-3.5 w-3.5 text-green-500" /> : <Copy className="h-3.5 w-3.5" />}
+                        {copied === "content" ? <CheckCircle2 className="h-3.5 w-3.5 text-green-500" /> : <Copy className="h-3.5 w-3.5" />}
                       </button>
                     </div>
                   </div>
-                  <div className="flex items-center justify-between">
+                  <div className="flex items-center justify-between px-3 py-2.5">
                     <span className="text-muted-foreground">Số tiền:</span>
-                    <span className="font-semibold text-primary">{fmt(orderData.amount)}</span>
+                    <span className="font-bold text-primary text-base">{fmt(orderData.amount)}</span>
+                  </div>
+                  <div className="flex items-center justify-between px-3 py-2.5">
+                    <span className="text-muted-foreground">Gói:</span>
+                    <span className="font-medium">{pricing?.plans.find(p => p.months === orderData.months)?.label ?? `${orderData.months} tháng`}</span>
                   </div>
                 </div>
 
