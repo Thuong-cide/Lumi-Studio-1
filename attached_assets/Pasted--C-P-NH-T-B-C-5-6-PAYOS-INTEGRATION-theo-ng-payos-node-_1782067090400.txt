@@ -1,0 +1,269 @@
+## CẬP NHẬT BƯỚC 5 & 6: PAYOS INTEGRATION (theo đúng @payos/node SDK)
+
+---
+
+### BƯỚC 5: CÀI ĐẶT VÀ KHỞI TẠO PAYOS
+
+Cài SDK:
+  pnpm --filter @workspace/api-server add @payos/node
+
+Tạo file `artifacts/api-server/src/lib/payos.ts`:
+
+```typescript
+import PayOS from '@payos/node'
+import { db } from '@workspace/db'
+import { settings } from '@workspace/db/schema'
+import { eq } from 'drizzle-orm'
+
+export async function getPayosClient(): Promise<PayOS> {
+  // Đọc credentials từ bảng settings (không dùng .env)
+  const rows = await db
+    .select()
+    .from(settings)
+    .where(
+      eq(settings.key, 'payos_client_id')
+        .or(eq(settings.key, 'payos_api_key'))
+        .or(eq(settings.key, 'payos_checksum_key'))
+    )
+
+  const map = Object.fromEntries(rows.map(r => [r.key, r.value]))
+
+  const clientId     = map['payos_client_id']     ?? ''
+  const apiKey       = map['payos_api_key']        ?? ''
+  const checksumKey  = map['payos_checksum_key']   ?? ''
+
+  if (!clientId || !apiKey || !checksumKey) {
+    throw new Error('PAYOS_NOT_CONFIGURED')
+  }
+
+  return new PayOS({
+    clientId,
+    apiKey,
+    checksumKey,
+  })
+}
+```
+
+Lưu ý: Gọi getPayosClient() mỗi lần cần dùng (không cache),
+để khi admin cập nhật key mới có hiệu lực ngay.
+
+---
+
+### BƯỚC 6A: ROUTE TẠO ĐƠN HÀNG
+
+Tạo route POST /api/studio/payment/create-order:
+
+```typescript
+import { Router } from 'express'
+import { db } from '@workspace/db'
+import { payments, settings, studios } from '@workspace/db/schema'
+import { eq } from 'drizzle-orm'
+import { getPayosClient } from '../lib/payos'
+import { requireStudioAuth } from '../middleware/auth'
+
+const router = Router()
+
+router.post('/create-order', requireStudioAuth, async (req, res) => {
+  try {
+    const studio = req.studio // từ middleware auth
+
+    // Đọc giá từ settings
+    const [priceSetting] = await db
+      .select()
+      .from(settings)
+      .where(eq(settings.key, 'monthly_price'))
+    
+    const amount = parseInt(priceSetting?.value ?? '299000')
+
+    // Tạo orderCode unique (số nguyên 8 chữ số)
+    const orderCode = Math.floor(10000000 + Math.random() * 90000000)
+    
+    // description = nội dung chuyển khoản, tối đa 25 ký tự (theo PayOS docs)
+    const description = `LUMIERE${orderCode}` // ví dụ: LUMIERE12345678
+
+    const appUrl = process.env.APP_URL ?? 'http://localhost:5173'
+
+    // Khởi tạo PayOS và tạo link
+    let payos
+    try {
+      payos = await getPayosClient()
+    } catch (e) {
+      return res.status(503).json({
+        code: 'PAYOS_NOT_CONFIGURED',
+        message: 'Hệ thống thanh toán chưa sẵn sàng, vui lòng liên hệ quản trị viên',
+      })
+    }
+
+    const paymentLink = await payos.paymentRequests.create({
+      orderCode,
+      amount,
+      description,           // <= nội dung chuyển khoản
+      items: [
+        {
+          name: 'Gia hạn Lumière Studio 1 tháng',
+          quantity: 1,
+          price: amount,
+        },
+      ],
+      cancelUrl:  `${appUrl}/dashboard?payment=cancelled`,
+      returnUrl:  `${appUrl}/dashboard?payment=success`,
+    })
+
+    // Lưu vào bảng payments
+    await db.insert(payments).values({
+      studioId:        studio.id,
+      amount,
+      payosOrderCode:  orderCode,
+      transferContent: description,
+      status:          'pending',
+      months:          1,
+    })
+
+    // Trả về QR và thông tin thanh toán
+    // paymentLink.qrCode là base64 QR code trực tiếp từ PayOS
+    return res.json({
+      qrCode:          paymentLink.qrCode,        // base64 hoặc URL ảnh QR
+      checkoutUrl:     paymentLink.checkoutUrl,   // link trang thanh toán PayOS
+      transferContent: description,
+      amount,
+      orderCode,
+    })
+
+  } catch (error) {
+    console.error('create-order error:', error)
+    return res.status(500).json({ message: 'Lỗi tạo đơn hàng' })
+  }
+})
+
+export default router
+```
+
+---
+
+### BƯỚC 6B: WEBHOOK HANDLER
+
+Tạo route POST /api/webhooks/payos (KHÔNG cần auth JWT):
+
+```typescript
+import { Router } from 'express'
+import { db } from '@workspace/db'
+import { payments, studios } from '@workspace/db/schema'
+import { eq, and } from 'drizzle-orm'
+import { getPayosClient } from '../lib/payos'
+import { addDays } from 'date-fns'
+
+const router = Router()
+
+router.post('/', async (req, res) => {
+  // LUÔN trả về 200 trước để PayOS không retry
+  res.status(200).send('OK')
+
+  try {
+    const payos = await getPayosClient()
+
+    // SDK tự verify HMAC signature — throw nếu không hợp lệ
+    const webhookData = payos.webhooks.verify(req.body)
+
+    // Chỉ xử lý khi thanh toán thành công (code === '00')
+    if (webhookData.code !== '00') return
+
+    const orderCode = webhookData.data.orderCode
+
+    // Tìm payment trong DB
+    const [payment] = await db
+      .select()
+      .from(payments)
+      .where(eq(payments.payosOrderCode, orderCode))
+
+    if (!payment) return
+
+    // Idempotent: bỏ qua nếu đã xử lý
+    if (payment.status === 'paid') return
+
+    // Cập nhật payment → paid
+    await db
+      .update(payments)
+      .set({ status: 'paid', paidAt: new Date() })
+      .where(eq(payments.id, payment.id))
+
+    // Tìm studio và cộng ngày
+    const [studio] = await db
+      .select()
+      .from(studios)
+      .where(eq(studios.id, payment.studioId))
+
+    if (!studio) return
+
+    const daysToAdd = (payment.months ?? 1) * 30
+
+    // Tính ngày hết hạn mới
+    const baseDate =
+      studio.status === 'active' &&
+      studio.subscriptionExpiresAt &&
+      studio.subscriptionExpiresAt > new Date()
+        ? studio.subscriptionExpiresAt  // cộng từ ngày hiện tại nếu còn hạn
+        : new Date()                    // cộng từ now nếu đã hết hạn
+
+    const newExpiresAt = addDays(baseDate, daysToAdd)
+
+    await db
+      .update(studios)
+      .set({
+        status:                 'active',
+        subscriptionExpiresAt:  newExpiresAt,
+      })
+      .where(eq(studios.id, studio.id))
+
+    console.log(`Studio ${studio.id} gia hạn đến ${newExpiresAt.toISOString()}`)
+
+  } catch (error) {
+    // Không throw — đã trả 200 rồi
+    console.error('Webhook error:', error)
+  }
+})
+
+export default router
+```
+
+QUAN TRỌNG: Đăng ký webhook URL trong dashboard PayOS (my.payos.vn):
+  URL: https://<domain-của-bạn>/api/webhooks/payos
+
+---
+
+### BƯỚC 6C: ROUTE KIỂM TRA TRẠNG THÁI PAYMENT (polling)
+
+```typescript
+// GET /api/studio/payment/status/:orderCode
+router.get('/status/:orderCode', requireStudioAuth, async (req, res) => {
+  const orderCode = parseInt(req.params.orderCode)
+  const studio = req.studio
+
+  const [payment] = await db
+    .select()
+    .from(payments)
+    .where(
+      and(
+        eq(payments.payosOrderCode, orderCode),
+        eq(payments.studioId, studio.id) // chỉ cho xem payment của mình
+      )
+    )
+
+  if (!payment) {
+    return res.status(404).json({ message: 'Không tìm thấy đơn hàng' })
+  }
+
+  return res.json({
+    status: payment.status, // 'pending' | 'paid' | 'cancelled'
+    paidAt: payment.paidAt,
+  })
+})
+```
+
+---
+
+### LƯU Ý QUAN TRỌNG:
+- Cài thêm date-fns nếu chưa có: pnpm --filter @workspace/api-server add date-fns
+- Webhook URL phải là HTTPS và public — trên Replit production URL tự động có HTTPS
+- Đăng ký webhook URL tại: https://my.payos.vn → Kênh thanh toán → Cài đặt webhook
+- Không xử lý logic trong webhook trước khi res.status(200) để PayOS không timeout
+- payOS.webhooks.verify() sẽ throw Error nếu signature sai — đây là bảo mật tự động của SDK

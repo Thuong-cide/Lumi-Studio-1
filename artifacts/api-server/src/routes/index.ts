@@ -18,17 +18,14 @@ router.use(authRouter);
 router.use(adminRouter);
 router.use(publicRouter);
 router.use(webhooksRouter);
-
-router.use("/studio/payment", paymentRouter);
+router.use(paymentRouter);
 
 router.use("/studios", checkSubscription);
 router.use("/drive", checkSubscription);
-router.use("/studio/subscription-info", checkSubscription);
 
 router.use(studiosRouter);
 router.use(photosRouter);
 router.use(driveRouter);
 router.use(deliverablesRouter);
-router.use(paymentRouter);
 
 export default router;

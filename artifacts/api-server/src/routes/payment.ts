@@ -1,33 +1,12 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
 import { paymentsTable, settingsTable, studiosTable } from "@workspace/db";
-import { eq, and, inArray } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 import { requireAuth, getErrorStatus } from "../lib/auth";
+import { getPayosClient } from "../lib/payos";
 import { logger } from "../lib/logger";
 
 const router = Router();
-
-async function getPayosClient() {
-  const rows = await db.select().from(settingsTable).where(
-    inArray(settingsTable.key, ["payos_client_id", "payos_api_key", "payos_checksum_key"])
-  );
-
-  const settingsMap: Record<string, string> = {};
-  for (const row of rows) {
-    settingsMap[row.key] = row.value;
-  }
-
-  const clientId = settingsMap["payos_client_id"] ?? "";
-  const apiKey = settingsMap["payos_api_key"] ?? "";
-  const checksumKey = settingsMap["payos_checksum_key"] ?? "";
-
-  if (!clientId || !apiKey || !checksumKey) {
-    throw new Error("PAYOS_NOT_CONFIGURED");
-  }
-
-  const { PayOS } = await import("@payos/node");
-  return new PayOS(clientId, apiKey, checksumKey);
-}
 
 async function getSetting(key: string): Promise<string> {
   const [row] = await db.select().from(settingsTable).where(eq(settingsTable.key, key));
@@ -64,10 +43,9 @@ router.post("/studio/payment/create-order", async (req, res): Promise<void> => {
     } while (!isUnique);
 
     const transferContent = `LUMIERE${orderCode}`;
-
     const BASE_URL = process.env.NEXT_PUBLIC_APP_URL ?? process.env.PUBLIC_BASE_URL ?? "";
 
-    const paymentLink = await payos.createPaymentLink({
+    const paymentLink = await payos.paymentRequests.create({
       orderCode,
       amount,
       description: transferContent,
@@ -93,7 +71,6 @@ router.post("/studio/payment/create-order", async (req, res): Promise<void> => {
     });
   } catch (e: unknown) {
     logger.error(e, "[CREATE PAYMENT ORDER]");
-    const msg = e instanceof Error ? e.message : "Lỗi server";
     res.status(500).json({ error: "Không thể tạo đơn thanh toán. Vui lòng thử lại." });
   }
 });
