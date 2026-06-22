@@ -39,11 +39,36 @@ async function sendWebhook(
       signal: AbortSignal.timeout(10_000),
     });
     if (!res.ok) {
-      return { success: false, error: `Webhook trả về status ${res.status}` };
+      // Đọc body để debug nhưng lọc HTML — tránh hiện HTML thô lên UI
+      let detail = "";
+      try {
+        const text = (await res.text()).trim();
+        // Nếu là HTML (từ nginx/proxy lỗi) thì bỏ qua, chỉ giữ JSON error
+        if (!text.startsWith("<") && text.length < 300) {
+          detail = ` — ${text}`;
+        }
+      } catch { /* ignore */ }
+
+      if (res.status === 502 || res.status === 503 || res.status === 504) {
+        return { success: false, error: `Không kết nối được đến n8n webhook (${res.status}). Kiểm tra n8n đang chạy và workflow đã được kích hoạt.` };
+      }
+      if (res.status === 404) {
+        return { success: false, error: `Không tìm thấy webhook URL (404). Kiểm tra lại URL n8n trong Cài đặt.` };
+      }
+      return { success: false, error: `Webhook trả về lỗi ${res.status}${detail}` };
     }
     return { success: true };
   } catch (err) {
-    return { success: false, error: err instanceof Error ? err.message : "Lỗi không xác định" };
+    if (err instanceof Error) {
+      if (err.name === "TimeoutError" || err.name === "AbortError") {
+        return { success: false, error: "Webhook timeout (>10s). Kiểm tra n8n có thể truy cập từ server không." };
+      }
+      if (err.message.includes("fetch failed") || err.message.includes("ECONNREFUSED")) {
+        return { success: false, error: "Không thể kết nối đến webhook URL. Kiểm tra n8n đang chạy." };
+      }
+      return { success: false, error: err.message };
+    }
+    return { success: false, error: "Lỗi không xác định khi gửi webhook" };
   }
 }
 

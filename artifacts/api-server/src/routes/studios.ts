@@ -262,7 +262,7 @@ router.post("/studios/albums/:id/send-notification", async (req, res): Promise<v
     }).where(eq(albumsTable.id, id));
 
     if (!result.success) {
-      res.status(502).json({ success: false, error: result.error });
+      res.status(422).json({ success: false, error: result.error });
       return;
     }
 
