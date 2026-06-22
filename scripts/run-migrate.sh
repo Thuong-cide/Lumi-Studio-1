@@ -220,6 +220,11 @@ DO $$ BEGIN
     ALTER TABLE photos ADD COLUMN height INTEGER;
   END IF;
 END$$;
+
+-- ── Cập nhật CHECK constraint studios.status (thêm giá trị 'trial') ─────────
+ALTER TABLE studios DROP CONSTRAINT IF EXISTS studios_status_check;
+ALTER TABLE studios ADD CONSTRAINT studios_status_check
+  CHECK (status IN ('trial','active','expired','disabled','PENDING','APPROVED','DISABLED'));
 EOSQL
 
 success "Schema đã được cập nhật."
