@@ -7,7 +7,7 @@ import { getGoogleConfig, invalidateGoogleConfigCache } from "../lib/google-driv
 
 const router = Router();
 
-const SETTINGS_KEYS = ["monthly_price", "payos_client_id", "payos_api_key", "payos_checksum_key", "trial_days"];
+const SETTINGS_KEYS = ["monthly_price", "payos_client_id", "payos_api_key", "payos_checksum_key", "trial_days", "discount_3m", "discount_6m", "discount_12m"];
 
 async function ensureDefaultSettings() {
   const defaults: Record<string, string> = {
