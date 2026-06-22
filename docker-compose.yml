@@ -1,5 +1,7 @@
 version: "3.9"
 
+name: lumi-studio-prod
+
 services:
   # ─── PostgreSQL riêng (dùng khi không có PostgreSQL sẵn hoặc không biết mật khẩu) ─
   postgres:
@@ -20,6 +22,8 @@ services:
       retries: 10
     profiles:
       - with-postgres   # chỉ chạy khi dùng chế độ "kèm PostgreSQL"
+    networks:
+      - lumiere_net
 
   # ─── App Lumière ──────────────────────────────────────────────────────────────
   lumiere:
@@ -44,6 +48,12 @@ services:
       postgres:
         condition: service_healthy
         required: false   # không bắt buộc nếu postgres không chạy
+    networks:
+      - lumiere_net
+
+networks:
+  lumiere_net:
+    name: lumi-studio-prod_default   # tên cố định, không đổi dù chạy từ thư mục nào
 
 volumes:
   lumiere_pgdata:
