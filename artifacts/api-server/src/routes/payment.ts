@@ -105,23 +105,8 @@ router.post("/studio/payment/create-order", async (req, res): Promise<void> => {
       months,
     });
 
-    // Fetch QR image server-side → return as base64 data URL (avoids browser CORS)
-    let qrCode = paymentLink.qrCode ?? "";
-    if (qrCode.startsWith("http")) {
-      try {
-        const qrRes = await fetch(qrCode, { signal: AbortSignal.timeout(5000) });
-        if (qrRes.ok) {
-          const buf = await qrRes.arrayBuffer();
-          const ct = qrRes.headers.get("content-type") || "image/png";
-          qrCode = `data:${ct};base64,${Buffer.from(buf).toString("base64")}`;
-        }
-      } catch {
-        // keep original URL as fallback
-      }
-    }
-
     res.json({
-      qrCode,
+      qrCode: paymentLink.qrCode ?? "",
       checkoutUrl: paymentLink.checkoutUrl,
       accountNumber: paymentLink.accountNumber,
       accountName: paymentLink.accountName,

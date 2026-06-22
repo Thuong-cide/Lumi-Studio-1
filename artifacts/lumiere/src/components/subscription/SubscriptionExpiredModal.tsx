@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { QRCodeSVG } from "qrcode.react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { toast } from "@/hooks/use-toast";
@@ -36,10 +37,8 @@ type Props = {
   title?: string;
 };
 
-function QRBlock({ qrUrl }: { qrUrl: string }) {
-  const [status, setStatus] = useState<"loading" | "ok" | "error">("loading");
-
-  if (!qrUrl) return (
+function QRBlock({ qrCode }: { qrCode: string }) {
+  if (!qrCode) return (
     <div className="flex justify-center">
       <div className="w-64 h-64 rounded-2xl border-2 border-dashed border-border flex items-center justify-center bg-muted/20 text-xs text-muted-foreground text-center px-4">
         QR chưa khả dụng<br />Vui lòng chuyển khoản thủ công theo thông tin bên dưới
@@ -49,23 +48,12 @@ function QRBlock({ qrUrl }: { qrUrl: string }) {
 
   return (
     <div className="flex justify-center">
-      <div className="relative w-64 h-64">
-        {status === "loading" && (
-          <div className="absolute inset-0 flex items-center justify-center rounded-2xl bg-muted/30">
-            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-          </div>
-        )}
-        {status === "error" && (
-          <div className="absolute inset-0 rounded-2xl border-2 border-dashed border-border flex items-center justify-center bg-muted/20 text-xs text-muted-foreground text-center px-4">
-            Không tải được QR<br />Chuyển khoản theo thông tin bên dưới
-          </div>
-        )}
-        <img
-          src={qrUrl}
-          alt="QR Code thanh toán"
-          className={`w-64 h-64 rounded-2xl border-2 border-border object-contain bg-white ${status === "error" ? "hidden" : ""}`}
-          onLoad={() => setStatus("ok")}
-          onError={() => setStatus("error")}
+      <div className="p-3 rounded-2xl border-2 border-border bg-white">
+        <QRCodeSVG
+          value={qrCode}
+          size={232}
+          level="M"
+          includeMargin={false}
         />
       </div>
     </div>
@@ -261,7 +249,7 @@ export function SubscriptionExpiredModal({ open, onPaid, onClose, title }: Props
             ) : (
               <>
                 {/* QR Code — large & prominent */}
-                <QRBlock qrUrl={orderData.qrCode} />
+                <QRBlock qrCode={orderData.qrCode} />
 
                 {/* Bank info — compact below */}
                 <div className="rounded-xl border bg-muted/20 divide-y divide-border/60 text-xs">
