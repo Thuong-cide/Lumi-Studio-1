@@ -36,6 +36,42 @@ type Props = {
   title?: string;
 };
 
+function QRBlock({ qrUrl }: { qrUrl: string }) {
+  const [status, setStatus] = useState<"loading" | "ok" | "error">("loading");
+
+  if (!qrUrl) return (
+    <div className="flex justify-center">
+      <div className="w-64 h-64 rounded-2xl border-2 border-dashed border-border flex items-center justify-center bg-muted/20 text-xs text-muted-foreground text-center px-4">
+        QR chưa khả dụng<br />Vui lòng chuyển khoản thủ công theo thông tin bên dưới
+      </div>
+    </div>
+  );
+
+  return (
+    <div className="flex justify-center">
+      <div className="relative w-64 h-64">
+        {status === "loading" && (
+          <div className="absolute inset-0 flex items-center justify-center rounded-2xl bg-muted/30">
+            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+          </div>
+        )}
+        {status === "error" && (
+          <div className="absolute inset-0 rounded-2xl border-2 border-dashed border-border flex items-center justify-center bg-muted/20 text-xs text-muted-foreground text-center px-4">
+            Không tải được QR<br />Chuyển khoản theo thông tin bên dưới
+          </div>
+        )}
+        <img
+          src={qrUrl}
+          alt="QR Code thanh toán"
+          className={`w-64 h-64 rounded-2xl border-2 border-border object-contain bg-white ${status === "error" ? "hidden" : ""}`}
+          onLoad={() => setStatus("ok")}
+          onError={() => setStatus("error")}
+        />
+      </div>
+    </div>
+  );
+}
+
 export function SubscriptionExpiredModal({ open, onPaid, onClose, title }: Props) {
   const [tab, setTab] = useState<"plans" | "payment">("plans");
   const [selectedMonths, setSelectedMonths] = useState<number>(1);
@@ -224,66 +260,45 @@ export function SubscriptionExpiredModal({ open, onPaid, onClose, title }: Props
               </div>
             ) : (
               <>
-                {/* QR Code */}
-                {orderData.qrCode && (
-                  <div className="flex justify-center">
-                    <img
-                      src={orderData.qrCode}
-                      alt="QR Code thanh toán"
-                      className="w-52 h-52 rounded-xl border-2 border-border object-contain bg-white"
-                      onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
-                    />
-                  </div>
-                )}
+                {/* QR Code — large & prominent */}
+                <QRBlock qrUrl={orderData.qrCode} />
 
-                {/* Bank info */}
-                <div className="rounded-xl border bg-muted/30 divide-y divide-border text-sm">
+                {/* Bank info — compact below */}
+                <div className="rounded-xl border bg-muted/20 divide-y divide-border/60 text-xs">
                   {orderData.accountName && (
-                    <div className="flex items-center justify-between px-3 py-2.5">
-                      <span className="text-muted-foreground">Chủ TK:</span>
-                      <span className="font-semibold uppercase tracking-wide">{orderData.accountName}</span>
+                    <div className="flex items-center justify-between px-3 py-2">
+                      <span className="text-muted-foreground">Chủ TK</span>
+                      <span className="font-semibold uppercase tracking-wide text-foreground">{orderData.accountName}</span>
                     </div>
                   )}
                   {orderData.accountNumber && (
-                    <div className="flex items-center justify-between px-3 py-2.5">
-                      <span className="text-muted-foreground">Số TK:</span>
-                      <div className="flex items-center gap-2">
-                        <span className="font-bold font-mono text-base tracking-wider">{orderData.accountNumber}</span>
-                        <button
-                          onClick={() => copyToClipboard(orderData.accountNumber, "acc")}
-                          className="text-muted-foreground hover:text-foreground transition-colors"
-                          title="Sao chép số TK"
-                        >
-                          {copied === "acc" ? <CheckCircle2 className="h-3.5 w-3.5 text-green-500" /> : <Copy className="h-3.5 w-3.5" />}
+                    <div className="flex items-center justify-between px-3 py-2">
+                      <span className="text-muted-foreground">Số TK</span>
+                      <div className="flex items-center gap-1.5">
+                        <span className="font-bold font-mono text-sm text-foreground">{orderData.accountNumber}</span>
+                        <button onClick={() => copyToClipboard(orderData.accountNumber, "acc")} className="text-muted-foreground hover:text-foreground transition-colors" title="Sao chép">
+                          {copied === "acc" ? <CheckCircle2 className="h-3 w-3 text-green-500" /> : <Copy className="h-3 w-3" />}
                         </button>
                       </div>
                     </div>
                   )}
-                  <div className="flex items-center justify-between px-3 py-2.5">
-                    <span className="text-muted-foreground">Nội dung CK:</span>
-                    <div className="flex items-center gap-2">
-                      <span className="font-bold font-mono">{orderData.transferContent}</span>
-                      <button
-                        onClick={() => copyToClipboard(orderData.transferContent, "content")}
-                        className="text-muted-foreground hover:text-foreground transition-colors"
-                        title="Sao chép nội dung"
-                      >
-                        {copied === "content" ? <CheckCircle2 className="h-3.5 w-3.5 text-green-500" /> : <Copy className="h-3.5 w-3.5" />}
+                  <div className="flex items-center justify-between px-3 py-2">
+                    <span className="text-muted-foreground">Nội dung CK</span>
+                    <div className="flex items-center gap-1.5">
+                      <span className="font-bold font-mono text-foreground">{orderData.transferContent}</span>
+                      <button onClick={() => copyToClipboard(orderData.transferContent, "content")} className="text-muted-foreground hover:text-foreground transition-colors" title="Sao chép">
+                        {copied === "content" ? <CheckCircle2 className="h-3 w-3 text-green-500" /> : <Copy className="h-3 w-3" />}
                       </button>
                     </div>
                   </div>
-                  <div className="flex items-center justify-between px-3 py-2.5">
-                    <span className="text-muted-foreground">Số tiền:</span>
-                    <span className="font-bold text-primary text-base">{fmt(orderData.amount)}</span>
-                  </div>
-                  <div className="flex items-center justify-between px-3 py-2.5">
-                    <span className="text-muted-foreground">Gói:</span>
-                    <span className="font-medium">{pricing?.plans.find(p => p.months === orderData.months)?.label ?? `${orderData.months} tháng`}</span>
+                  <div className="flex items-center justify-between px-3 py-2">
+                    <span className="text-muted-foreground">Số tiền</span>
+                    <span className="font-bold text-primary">{fmt(orderData.amount)}</span>
                   </div>
                 </div>
 
-                <div className="flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50/50 dark:border-amber-800 dark:bg-amber-950/20 p-3 text-xs text-amber-800 dark:text-amber-300">
-                  <Loader2 className="h-3.5 w-3.5 animate-spin shrink-0" />
+                <div className="flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50/50 dark:border-amber-800 dark:bg-amber-950/20 p-2.5 text-xs text-amber-800 dark:text-amber-300">
+                  <Loader2 className="h-3 w-3 animate-spin shrink-0" />
                   Chuyển khoản đúng nội dung, hệ thống tự động kích hoạt trong vài giây
                 </div>
 
