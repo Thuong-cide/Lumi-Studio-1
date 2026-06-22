@@ -21,18 +21,25 @@ echo ""
 
 [[ -f .env ]] || error "Không tìm thấy file .env. Hãy chạy setup-ubuntu.sh trước."
 
-# ─── 1. Lấy network hiện tại của container ───────────────────────────────────
-PG_NETWORK=$(docker inspect lumiere-studio \
+# ─── 0. Pull code mới nhất từ GitHub ─────────────────────────────────────────
+echo ""
+info "Tải code mới nhất từ GitHub..."
+git pull || error "git pull thất bại. Kiểm tra kết nối mạng hoặc quyền truy cập repo."
+success "Code đã cập nhật."
+
+# ─── 1. Lấy network từ postgres_db (ưu tiên) hoặc container cũ ──────────────
+echo ""
+PG_NETWORK=$(docker inspect postgres_db \
   --format '{{range $k,$v := .NetworkSettings.Networks}}{{$k}} {{end}}' \
-  2>/dev/null | awk '{print $1}' || true)
+  2>/dev/null | tr ' ' '\n' | grep -v '^bridge$' | grep -v '^$' | head -1 || true)
 
 if [[ -z "$PG_NETWORK" ]]; then
-  warn "Không tìm thấy container lumiere-studio đang chạy."
-  PG_NETWORK=$(docker inspect postgres_db \
+  PG_NETWORK=$(docker inspect lumiere-studio \
     --format '{{range $k,$v := .NetworkSettings.Networks}}{{$k}} {{end}}' \
-    2>/dev/null | awk '{print $1}' || true)
-  [[ -z "$PG_NETWORK" ]] && error "Không lấy được network. Kiểm tra: docker ps"
+    2>/dev/null | tr ' ' '\n' | grep -v '^bridge$' | grep -v '^$' | head -1 || true)
 fi
+
+[[ -z "$PG_NETWORK" ]] && error "Không lấy được network. Kiểm tra: docker ps"
 info "Network: $PG_NETWORK"
 
 # ─── 2. Build image mới ──────────────────────────────────────────────────────
@@ -60,7 +67,14 @@ docker run -d \
   --env-file .env \
   lumiere-studio:latest
 
+# ─── 5. Đảm bảo postgres_db cùng network với app ────────────────────────────
+info "Đảm bảo postgres_db kết nối đúng network..."
+docker network connect "$PG_NETWORK" postgres_db 2>/dev/null && \
+  success "postgres_db đã được kết nối vào $PG_NETWORK." || \
+  success "postgres_db đã ở trong $PG_NETWORK (bỏ qua)."
+
 # Chờ container sẵn sàng
+echo ""
 info "Chờ service khởi động..."
 for i in {1..15}; do
   sleep 3
@@ -74,12 +88,12 @@ echo ""
 docker ps --format '{{.Names}} {{.Status}}' | grep "lumiere-studio" | grep -q "Up" || \
   error "Container không khởi động. Xem log: docker logs lumiere-studio"
 
-# ─── 5. Migrate schema (thêm bảng/cột mới nếu có) ────────────────────────────
+# ─── 6. Migrate schema (thêm bảng/cột mới nếu có) ────────────────────────────
 echo ""
 info "Cập nhật schema database..."
 bash scripts/run-migrate.sh 2>&1 | grep -E "(\[ OK \]|\[WARN\]|\[LỖI\])" || true
 
-# ─── 6. Kiểm tra API ─────────────────────────────────────────────────────────
+# ─── 7. Kiểm tra API ─────────────────────────────────────────────────────────
 echo ""
 info "Kiểm tra API..."
 sleep 2
