@@ -109,6 +109,13 @@ CREATE INDEX IF NOT EXISTS sel_confirmations_customer_idx               ON selec
 -- ── Cột mới trong bảng studios ───────────────────────────────────
 DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM information_schema.columns
+                 WHERE table_name='studios' AND column_name='trial_ends_at') THEN
+    ALTER TABLE studios ADD COLUMN trial_ends_at TIMESTAMP;
+  END IF;
+END$$;
+
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns
                  WHERE table_name='studios' AND column_name='subscription_expires_at') THEN
     ALTER TABLE studios ADD COLUMN subscription_expires_at TIMESTAMP;
   END IF;
