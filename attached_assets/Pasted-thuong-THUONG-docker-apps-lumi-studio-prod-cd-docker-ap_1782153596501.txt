@@ -1,0 +1,74 @@
+thuong@THUONG:~/docker-apps/lumi-studio-prod$ cd ~/docker-apps/lumi-studio-prod && git pull && bash scripts/run-migrate.sh
+remote: Enumerating objects: 6, done.
+remote: Counting objects: 100% (6/6), done.
+remote: Compressing objects: 100% (2/2), done.
+remote: Total 4 (delta 2), reused 4 (delta 2), pack-reused 0 (from 0)
+Unpacking objects: 100% (4/4), 1.87 KiB | 637.00 KiB/s, done.
+From https://github.com/Thuong-cide/Lumi-Studio-1
+   993b491..7ff3bfb  main       -> origin/main
+Updating 993b491..7ff3bfb
+Fast-forward
+ ...logs-tail-15-lumiere-studio-level-_1782153347956.txt | 17 +++++++++++++++++
+ 1 file changed, 17 insertions(+)
+ create mode 100644 attached_assets/Pasted-thuong-THUONG-docker-logs-tail-15-lumiere-studio-level-_1782153347956.txt
+
+╔══════════════════════════════════════════════╗
+║     Lumière Studio — Cập nhật schema DB      ║
+╚══════════════════════════════════════════════╝
+
+[INFO]  Database: lumiere_db  |  User: lumiere_user
+
+[INFO]  Đang chạy migrate (thêm cột/bảng mới nếu chưa có)...
+CREATE TABLE
+NOTICE:  relation "payments" already exists, skipping
+CREATE INDEX
+NOTICE:  relation "payments_studio_id_idx" already exists, skipping
+NOTICE:  relation "payments_payos_order_code_idx" already exists, skipping
+CREATE INDEX
+NOTICE:  relation "settings" already exists, skipping
+CREATE TABLE
+NOTICE:  relation "app_config" already exists, skipping
+CREATE TABLE
+NOTICE:  relation "deliverables" already exists, skipping
+CREATE TABLE
+NOTICE:  relation "deliverables_album_id_version_idx" already exists, skipping
+CREATE INDEX
+NOTICE:  relation "deliverable_photos" already exists, skipping
+CREATE TABLE
+NOTICE:  relation "deliverable_photos_deliverable_id_idx" already exists, skipping
+CREATE INDEX
+NOTICE:  relation "deliverable_photos_original_photo_id_idx" already exists, skipping
+CREATE INDEX
+NOTICE:  relation "selection_confirmations" already exists, skipping
+CREATE TABLE
+CREATE INDEX
+NOTICE:  relation "sel_confirmations_album_id_confirmed_at_idx" already exists, skipping
+NOTICE:  relation "sel_confirmations_customer_idx" already exists, skipping
+CREATE INDEX
+DO
+DO
+DO
+DO
+DO
+DO
+DO
+DO
+DO
+DO
+DO
+DO
+DO
+DO
+DO
+[ OK ]  Schema đã được cập nhật.
+
+[INFO]  Khởi động lại container để áp dụng thay đổi...
+lumiere-studio
+[ OK ]  Container đã khởi động lại.
+
+[ OK ]  Migrate hoàn tất!
+
+  App đang chạy tại: http://localhost:9200
+
+thuong@THUONG:~/docker-apps/lumi-studio-prod$ 
+
