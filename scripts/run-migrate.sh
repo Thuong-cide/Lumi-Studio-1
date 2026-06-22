@@ -17,7 +17,10 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$SCRIPT_DIR"
 
 [[ -f .env ]] || error "Không tìm thấy file .env. Hãy chạy setup-ubuntu.sh trước."
-source .env
+
+# Đọc DATABASE_URL an toàn (không dùng source để tránh bash thực thi URL như lệnh)
+DATABASE_URL=$(grep -E '^DATABASE_URL=' .env | head -1 | cut -d= -f2-)
+[[ -z "$DATABASE_URL" ]] && error "Không tìm thấy DATABASE_URL trong file .env"
 
 PG_USER=$(echo "$DATABASE_URL"    | sed -n 's|postgresql://\([^:]*\):.*|\1|p')
 PG_PASS=$(echo "$DATABASE_URL"    | sed -n 's|postgresql://[^:]*:\([^@]*\)@.*|\1|p')
